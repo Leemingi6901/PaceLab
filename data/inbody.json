@@ -1,0 +1,9 @@
+{
+  "_comment": "⚠️ 샘플 데이터입니다. 인바디 측정값으로 교체하세요. 공개 저장소이므로 공개해도 괜찮은 수준만 기록하세요.",
+  "measurements": [
+    { "date": "2025-10-01", "weightKg": 72.5, "bodyFatPct": 18.2, "muscleKg": 33.1 },
+    { "date": "2026-01-15", "weightKg": 71.6, "bodyFatPct": 16.9, "muscleKg": 33.4 },
+    { "date": "2026-05-20", "weightKg": 70.4, "bodyFatPct": 15.8, "muscleKg": 33.6 },
+    { "date": "2026-07-10", "weightKg": 69.8, "bodyFatPct": 15.1, "muscleKg": 33.8 }
+  ]
+}
