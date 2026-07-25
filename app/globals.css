@@ -401,3 +401,93 @@ em {
     padding: 64px 20px;
   }
 }
+
+/* 데이터 입력 (admin) */
+.pl-pinbox {
+  max-width: 320px;
+  margin-bottom: 34px;
+}
+
+.pl-msg {
+  margin-top: 12px;
+  font-size: 0.88rem;
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.pl-msg.ok {
+  color: var(--accent);
+  background: rgba(45, 212, 191, 0.1);
+  border: 1px solid rgba(45, 212, 191, 0.3);
+}
+
+.pl-msg.err {
+  color: var(--accent2);
+  background: rgba(244, 114, 182, 0.1);
+  border: 1px solid rgba(244, 114, 182, 0.3);
+}
+
+.pl-forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.pl-form {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pl-form h3 {
+  font-size: 1.02rem;
+  margin-bottom: 4px;
+}
+
+.pl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pl-field span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.pl-field input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: var(--text);
+  font-size: 0.92rem;
+  outline: none;
+  color-scheme: dark;
+}
+
+.pl-field input:focus {
+  border-color: var(--accent);
+}
+
+.pl-form button {
+  margin-top: 8px;
+  background: linear-gradient(90deg, var(--accent), var(--accent3));
+  border: none;
+  border-radius: 999px;
+  color: #06231f;
+  font-weight: 800;
+  font-size: 0.92rem;
+  padding: 11px 0;
+  cursor: pointer;
+}
+
+.pl-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

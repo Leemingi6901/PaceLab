@@ -1,7 +1,4 @@
 import {
-  races,
-  inbody,
-  upcoming,
   currentFitness,
   predictAll,
   predictCourseSplits,
@@ -9,16 +6,30 @@ import {
   formatTime,
   formatPace,
 } from "@/lib/predict";
+import { getData } from "@/lib/store";
 
-export default function Home() {
-  const fit = currentFitness();
-  const predictions = predictAll();
-  const course = predictCourseSplits();
-  const latest = inbody[inbody.length - 1];
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const data = await getData();
+  const { races, inbody, trainings, upcoming } = data;
+
+  const fit = currentFitness(races, inbody);
+  const predictions = predictAll(races, inbody);
+  const course = predictCourseSplits(races, inbody, upcoming);
 
   const maxW = Math.max(...inbody.map((m) => m.weightKg));
-  const maxF = Math.max(...inbody.map((m) => m.bodyFatPct));
-  const maxM = Math.max(...inbody.map((m) => m.muscleKg));
+  const maxF = Math.max(...inbody.map((m) => m.bodyFatPct), 1);
+  const maxM = Math.max(...inbody.map((m) => m.muscleKg), 1);
+
+  const recentTrainings = [...trainings].reverse().slice(0, 8);
+  const now = Date.now();
+  const weekKm = trainings
+    .filter((t) => now - new Date(t.date).getTime() < 7 * 86400000)
+    .reduce((s, t) => s + t.distanceKm, 0);
+  const monthKm = trainings
+    .filter((t) => now - new Date(t.date).getTime() < 30 * 86400000)
+    .reduce((s, t) => s + t.distanceKm, 0);
 
   return (
     <div>
@@ -29,6 +40,7 @@ export default function Home() {
         <nav>
           <a href="#records">Records</a>
           <a href="#condition">Condition</a>
+          <a href="#training">Training</a>
           <a href="#prediction">Prediction</a>
           <a href="#nextrace">Next Race</a>
           <a href="https://daniel-tech-wiki-korea97.vercel.app">Daniel.wiki ↗</a>
@@ -62,6 +74,15 @@ export default function Home() {
             <b>{fit.latestWeight}kg</b>
             <small>기록 당시 {fit.baseWeight}kg</small>
           </div>
+          <div className="pl-stat">
+            <small>최근 7일 / 30일 주행</small>
+            <b>
+              {weekKm.toFixed(1)}
+              <small>km</small> / {monthKm.toFixed(1)}
+              <small>km</small>
+            </b>
+            <small>훈련 로그 기준</small>
+          </div>
         </div>
       </section>
 
@@ -74,7 +95,7 @@ export default function Home() {
         <p className="pl-section-desc">칩 타임 기준 공식 기록. 이 데이터가 모든 예측의 출발점입니다.</p>
         <div className="pl-grid">
           {races.map((r) => (
-            <div key={r.race} className="pl-card">
+            <div key={`${r.race}-${r.date}`} className="pl-card">
               <h3>{r.race}</h3>
               <span className="pl-date">{r.date}</span>
               <div className="pl-time">{r.time}</div>
@@ -127,9 +148,50 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 03 PB 예측 */}
+      {/* 03 훈련 로그 */}
+      <section className="pl-section" id="training">
+        <span className="pl-eyebrow">03 — TRAINING LOG</span>
+        <h2>
+          러닝 <em>훈련 기록</em>
+        </h2>
+        <p className="pl-section-desc">서울 인근 훈련 기록. 최근 8회를 보여줍니다.</p>
+        {recentTrainings.length === 0 ? (
+          <div className="pl-note">
+            아직 훈련 기록이 없습니다. <a href="/admin">데이터 입력</a>에서 첫 훈련을 추가해보세요.
+          </div>
+        ) : (
+          <div className="pl-table-wrap">
+            <table className="pl-table">
+              <thead>
+                <tr>
+                  <th>날짜</th>
+                  <th>거리</th>
+                  <th>시간</th>
+                  <th>페이스</th>
+                  <th>심박</th>
+                  <th>메모</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentTrainings.map((t) => (
+                  <tr key={`${t.date}-${t.distanceKm}`}>
+                    <td>{t.date}</td>
+                    <td>{t.distanceKm}km</td>
+                    <td>{t.time}</td>
+                    <td>{formatPace(parseTime(t.time) / t.distanceKm)}/km</td>
+                    <td>{t.avgHr ? `${t.avgHr}bpm` : "—"}</td>
+                    <td>{t.note ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* 04 PB 예측 */}
       <section className="pl-section" id="prediction">
-        <span className="pl-eyebrow">03 — PB PREDICTION</span>
+        <span className="pl-eyebrow">04 — PB PREDICTION</span>
         <h2>
           거리별 <em>예상 PB</em>
         </h2>
@@ -146,15 +208,11 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <div className="pl-note">
-          현재 데이터는 <b>샘플</b>입니다. <code>data/races.json</code>과 <code>data/inbody.json</code>을 실제 기록으로
-          바꾸면 모든 예측이 자동 갱신됩니다.
-        </div>
       </section>
 
-      {/* 04 다음 대회 */}
+      {/* 05 다음 대회 */}
       <section className="pl-section" id="nextrace">
-        <span className="pl-eyebrow">04 — NEXT RACE</span>
+        <span className="pl-eyebrow">05 — NEXT RACE</span>
         <h2>
           다음 대회 <em>구간 전략</em>
         </h2>
@@ -202,15 +260,11 @@ export default function Home() {
             </tbody>
           </table>
         </div>
-        <div className="pl-note">
-          코스 고도 데이터는 대회 공홈·GPX에서 수집합니다. 반복 수집은 OpenClaw 크롤링 작업으로 자동화할 수 있고,
-          수집한 구간 데이터를 <code>data/upcoming.json</code>에 넣으면 전략표가 자동 갱신됩니다.
-        </div>
       </section>
 
       <footer className="pl-footer">
         © 2026 PaceLab — Daniel의 마라톤 훈련 분석 랩 ·{" "}
-        <a href="https://daniel-tech-wiki-korea97.vercel.app">Daniel.wiki</a>
+        <a href="https://daniel-tech-wiki-korea97.vercel.app">Daniel.wiki</a> · <a href="/admin">데이터 입력</a>
       </footer>
     </div>
   );

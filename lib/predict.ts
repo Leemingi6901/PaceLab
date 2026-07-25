@@ -5,10 +5,6 @@
  * - Riegel/VDOT 기반으로 목표 거리 기록과 구간(스플릿) 예측
  */
 
-import racesJson from "@/data/races.json";
-import inbodyJson from "@/data/inbody.json";
-import upcomingJson from "@/data/upcoming.json";
-
 export interface RaceRecord {
   race: string;
   date: string;
@@ -31,10 +27,6 @@ export interface CourseSegment {
   elevGain: number;
   elevLoss: number;
 }
-
-export const races: RaceRecord[] = racesJson.records;
-export const inbody: InbodyEntry[] = inbodyJson.measurements;
-export const upcoming = upcomingJson.race;
 
 /** "1:47:20" | "47:30" → 초 */
 export function parseTime(t: string): number {
@@ -71,8 +63,8 @@ export function vdotFromRace(distanceM: number, timeMin: number): number {
 
 /** VDOT → 거리(m) 예상 기록(분). 이분 탐색으로 역산 */
 export function predictTimeMin(vdot: number, distanceM: number): number {
-  let lo = distanceM / 600; // 매우 빠른 가정 (600 m/min)
-  let hi = distanceM / 100; // 매우 느린 가정 (100 m/min)
+  let lo = distanceM / 600;
+  let hi = distanceM / 100;
   for (let i = 0; i < 60; i++) {
     const mid = (lo + hi) / 2;
     if (vdotFromRace(distanceM, mid) > vdot) lo = mid;
@@ -94,7 +86,7 @@ export interface FitnessSummary {
  * - 각 대회 기록의 VDOT 계산 후, 최근 기록일수록 큰 가중치(6개월 반감기)
  * - 체중 보정: 상대 VO2max는 체중에 반비례 → vdot × (기록 당시 체중 / 현재 체중), ±5% 캡
  */
-export function currentFitness(): FitnessSummary {
+export function currentFitness(races: RaceRecord[], inbody: InbodyEntry[]): FitnessSummary {
   const now = Date.now();
   let wSum = 0;
   let vSum = 0;
@@ -103,7 +95,7 @@ export function currentFitness(): FitnessSummary {
   for (const r of races) {
     const v = vdotFromRace(r.distanceKm * 1000, parseTime(r.time) / 60);
     const ageDays = (now - new Date(r.date).getTime()) / 86400000;
-    const w = Math.pow(0.5, ageDays / 180);
+    const w = Math.pow(0.5, Math.max(0, ageDays) / 180);
     wSum += w;
     vSum += v * w;
     if (!best || v > best.v) best = { r, v };
@@ -138,8 +130,8 @@ const TARGETS: { label: string; km: number }[] = [
   { label: "풀코스", km: 42.195 },
 ];
 
-export function predictAll(): Prediction[] {
-  const fit = currentFitness();
+export function predictAll(races: RaceRecord[], inbody: InbodyEntry[]): Prediction[] {
+  const fit = currentFitness(races, inbody);
   return TARGETS.map((t) => {
     const timeSec = predictTimeMin(fit.weightAdjustedVdot, t.km * 1000) * 60;
     return { label: t.label, distanceKm: t.km, timeSec, paceSecPerKm: timeSec / t.km };
@@ -156,24 +148,32 @@ export interface SplitPrediction {
   elevLoss: number;
 }
 
+export interface UpcomingInput {
+  distanceKm: number;
+  segments: CourseSegment[];
+}
+
 /**
  * 예정 대회 구간 예측:
  * - 균등 페이스에 후반 감속 드리프트(0~+4%)를 선형 적용
  * - 고도 보정: 상승 10m당 +9초, 하강 10m당 -4초
  */
-export function predictCourseSplits(): { totalSec: number; splits: SplitPrediction[] } {
-  const fit = currentFitness();
+export function predictCourseSplits(
+  races: RaceRecord[],
+  inbody: InbodyEntry[],
+  upcoming: UpcomingInput
+): { totalSec: number; splits: SplitPrediction[] } {
+  const fit = currentFitness(races, inbody);
   const distM = upcoming.distanceKm * 1000;
   const flatTotalSec = predictTimeMin(fit.weightAdjustedVdot, distM) * 60;
   const basePace = flatTotalSec / upcoming.distanceKm;
 
-  const segs = upcoming.segments as CourseSegment[];
   let cumulative = 0;
-  const splits: SplitPrediction[] = segs.map((s) => {
+  const splits: SplitPrediction[] = upcoming.segments.map((s) => {
     const len = s.toKm - s.fromKm;
     const mid = (s.fromKm + s.toKm) / 2;
-    const drift = 1 + 0.04 * (mid / upcoming.distanceKm); // 후반으로 갈수록 최대 +4%
-    const elevAdj = (s.elevGain / 10) * 9 + (s.elevLoss / 10) * 4; // loss는 음수
+    const drift = 1 + 0.04 * (mid / upcoming.distanceKm);
+    const elevAdj = (s.elevGain / 10) * 9 + (s.elevLoss / 10) * 4;
     const segmentSec = basePace * len * drift + elevAdj;
     cumulative += segmentSec;
     return {
