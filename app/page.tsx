@@ -53,7 +53,6 @@ export default async function Home() {
           <a href="#nextworkout">Workout</a>
           <a href="#prediction">Prediction</a>
           <a href="#nextrace">Next Race</a>
-          <a href="https://daniel-tech-wiki-korea97.vercel.app">Daniel.wiki ↗</a>
         </nav>
       </header>
 
@@ -331,8 +330,7 @@ export default async function Home() {
       </section>
 
       <footer className="pl-footer">
-        © 2026 PaceLab — Daniel의 마라톤 훈련 분석 랩 ·{" "}
-        <a href="https://daniel-tech-wiki-korea97.vercel.app">Daniel.wiki</a> · <a href="/admin">데이터 입력</a>
+        © 2026 PaceLab — Daniel의 마라톤 훈련 분석 랩 · <a href="/admin">데이터 입력</a>
       </footer>
     </div>
   );
