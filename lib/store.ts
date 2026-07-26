@@ -1,7 +1,4 @@
 import { put } from "@vercel/blob";
-import racesJson from "@/data/races.json";
-import inbodyJson from "@/data/inbody.json";
-import upcomingJson from "@/data/upcoming.json";
 import type { RaceRecord, InbodyEntry, CourseSegment } from "./predict";
 
 export interface Training {
@@ -25,16 +22,16 @@ export interface PaceLabData {
   races: RaceRecord[];
   inbody: InbodyEntry[];
   trainings: Training[];
-  upcoming: UpcomingRace;
+  upcoming: UpcomingRace | null;
 }
 
 const BLOB_PATH = "pacelab/data.json";
 
 export const DEFAULT_DATA: PaceLabData = {
-  races: racesJson.records,
-  inbody: inbodyJson.measurements,
+  races: [],
+  inbody: [],
   trainings: [],
-  upcoming: upcomingJson.race as UpcomingRace,
+  upcoming: null,
 };
 
 /** 토큰(vercel_blob_rw_<storeId>_<secret>)에서 스토어 공개 호스트를 유도 */
@@ -46,7 +43,7 @@ function blobBaseUrl(): string | null {
 }
 
 /**
- * Blob에서 데이터 로드. 없거나 실패하면 저장소의 기본(샘플) 데이터.
+ * Blob에서 데이터 로드. 없거나 실패하면 빈 기본값.
  * list() SDK 호출은 개발 서버에서 캐시되는 문제가 있어, 고정 경로 URL을
  * 타임스탬프 쿼리로 캐시버스팅하며 직접 fetch한다.
  */

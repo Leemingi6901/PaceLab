@@ -86,7 +86,8 @@ export interface FitnessSummary {
  * - 각 대회 기록의 VDOT 계산 후, 최근 기록일수록 큰 가중치(6개월 반감기)
  * - 체중 보정: 상대 VO2max는 체중에 반비례 → vdot × (기록 당시 체중 / 현재 체중), ±5% 캡
  */
-export function currentFitness(races: RaceRecord[], inbody: InbodyEntry[]): FitnessSummary {
+export function currentFitness(races: RaceRecord[], inbody: InbodyEntry[]): FitnessSummary | null {
+  if (races.length === 0) return null;
   const now = Date.now();
   let wSum = 0;
   let vSum = 0;
@@ -132,6 +133,7 @@ const TARGETS: { label: string; km: number }[] = [
 
 export function predictAll(races: RaceRecord[], inbody: InbodyEntry[]): Prediction[] {
   const fit = currentFitness(races, inbody);
+  if (!fit) return [];
   return TARGETS.map((t) => {
     const timeSec = predictTimeMin(fit.weightAdjustedVdot, t.km * 1000) * 60;
     return { label: t.label, distanceKm: t.km, timeSec, paceSecPerKm: timeSec / t.km };
@@ -162,8 +164,9 @@ export function predictCourseSplits(
   races: RaceRecord[],
   inbody: InbodyEntry[],
   upcoming: UpcomingInput
-): { totalSec: number; splits: SplitPrediction[] } {
+): { totalSec: number; splits: SplitPrediction[] } | null {
   const fit = currentFitness(races, inbody);
+  if (!fit) return null;
   const distM = upcoming.distanceKm * 1000;
   const flatTotalSec = predictTimeMin(fit.weightAdjustedVdot, distM) * 60;
   const basePace = flatTotalSec / upcoming.distanceKm;

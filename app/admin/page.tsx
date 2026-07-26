@@ -150,6 +150,26 @@ export default function AdminPage() {
             </Field>
             <button disabled={busy}>{busy ? "저장 중…" : "훈련 기록 추가"}</button>
           </form>
+
+          <form className="pl-form" onSubmit={onSubmit("upcoming")}>
+            <h3>🎯 예정 대회 (기존 등록을 대체)</h3>
+            <Field label="대회명 *">
+              <input name="name" required placeholder="2026 춘천마라톤" />
+            </Field>
+            <Field label="날짜 *">
+              <input name="date" required type="date" />
+            </Field>
+            <Field label="거리(km) *">
+              <input name="distanceKm" required type="number" step="0.0001" placeholder="42.195" />
+            </Field>
+            <Field label="지역">
+              <input name="location" placeholder="강원 춘천시" />
+            </Field>
+            <Field label="코스 특징">
+              <input name="courseNote" placeholder="전반 완만, 후반 언덕" />
+            </Field>
+            <button disabled={busy}>{busy ? "저장 중…" : "예정 대회 등록"}</button>
+          </form>
         </div>
       </main>
 
