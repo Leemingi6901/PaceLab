@@ -239,6 +239,35 @@ export function classifyIntensity(gapSecPerKm: number, predictions: Prediction[]
   return "레페티션";
 }
 
+export type RunnerTierName = "챌린저" | "다이아몬드" | "플래티넘" | "골드" | "실버" | "브론즈" | "언랭크";
+
+export interface RunnerTier {
+  tier: RunnerTierName;
+  percentileLabel: string;
+}
+
+/**
+ * 전 세계 러너 티어:
+ * 마라톤 완주 기록 기준의 근사 퍼센타일 벤치마크를 VDOT로 환산해 구간을 나눈다.
+ * (공식 글로벌 통계가 아닌, 마라톤 완주자 분포에 대한 일반적으로 알려진 근사치 기준)
+ */
+const TIER_BENCHMARKS: { tier: RunnerTierName; percentileLabel: string; marathonTime: string }[] = [
+  { tier: "챌린저", percentileLabel: "상위 0.1%", marathonTime: "2:20:00" },
+  { tier: "다이아몬드", percentileLabel: "상위 1%", marathonTime: "2:45:00" },
+  { tier: "플래티넘", percentileLabel: "상위 10%", marathonTime: "3:15:00" },
+  { tier: "골드", percentileLabel: "상위 30%", marathonTime: "3:45:00" },
+  { tier: "실버", percentileLabel: "상위 60%", marathonTime: "4:15:00" },
+  { tier: "브론즈", percentileLabel: "상위 80%", marathonTime: "5:00:00" },
+];
+
+export function getRunnerTier(vdot: number): RunnerTier {
+  for (const b of TIER_BENCHMARKS) {
+    const benchVdot = vdotFromRace(42195, parseTime(b.marathonTime) / 60);
+    if (vdot >= benchVdot) return { tier: b.tier, percentileLabel: b.percentileLabel };
+  }
+  return { tier: "언랭크", percentileLabel: "상위 80% 밖" };
+}
+
 export interface WorkoutRecommendation {
   level: "하" | "중" | "상";
   title: string;

@@ -864,3 +864,75 @@ em {
   color: var(--muted);
   white-space: nowrap;
 }
+
+/* 글로벌 러너 티어 카드 */
+.pl-stat-tier {
+  position: relative;
+  overflow: hidden;
+}
+
+.pl-tier-name {
+  font-size: 1.5rem !important;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.pl-tier-챌린저 {
+  border-color: rgba(250, 204, 21, 0.6);
+  background: linear-gradient(160deg, rgba(250, 204, 21, 0.16), rgba(239, 68, 68, 0.08));
+  box-shadow: 0 0 24px rgba(250, 204, 21, 0.18);
+}
+.pl-tier-챌린저 .pl-tier-name {
+  background: linear-gradient(90deg, #fde047, #f97316, #ef4444);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.pl-tier-다이아몬드 {
+  border-color: rgba(96, 165, 250, 0.55);
+  background: linear-gradient(160deg, rgba(96, 165, 250, 0.14), rgba(167, 139, 250, 0.06));
+}
+.pl-tier-다이아몬드 .pl-tier-name {
+  color: #7dd3fc;
+}
+
+.pl-tier-플래티넘 {
+  border-color: rgba(45, 212, 191, 0.5);
+  background: linear-gradient(160deg, rgba(45, 212, 191, 0.14), rgba(94, 234, 212, 0.05));
+}
+.pl-tier-플래티넘 .pl-tier-name {
+  color: #5eead4;
+}
+
+.pl-tier-골드 {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: linear-gradient(160deg, rgba(251, 191, 36, 0.14), rgba(251, 191, 36, 0.04));
+}
+.pl-tier-골드 .pl-tier-name {
+  color: #fbbf24;
+}
+
+.pl-tier-실버 {
+  border-color: rgba(203, 213, 225, 0.4);
+  background: linear-gradient(160deg, rgba(203, 213, 225, 0.12), rgba(203, 213, 225, 0.03));
+}
+.pl-tier-실버 .pl-tier-name {
+  color: #cbd5e1;
+}
+
+.pl-tier-브론즈 {
+  border-color: rgba(217, 119, 87, 0.45);
+  background: linear-gradient(160deg, rgba(217, 119, 87, 0.14), rgba(217, 119, 87, 0.04));
+}
+.pl-tier-브론즈 .pl-tier-name {
+  color: #e29a6d;
+}
+
+.pl-tier-언랭크 {
+  border-style: dashed;
+  border-color: var(--border);
+}
+.pl-tier-언랭크 .pl-tier-name {
+  color: var(--muted);
+}

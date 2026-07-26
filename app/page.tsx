@@ -3,6 +3,7 @@ import {
   predictAll,
   predictCourseSplits,
   recommendWorkouts,
+  getRunnerTier,
   parseTime,
   formatTime,
   formatPace,
@@ -25,6 +26,8 @@ export default async function Home() {
   const predictions = predictAll(races, inbody);
   const course = upcoming ? predictCourseSplits(races, inbody, upcoming) : null;
   const workouts = recommendWorkouts(trainings, predictions);
+  const tier = fit ? getRunnerTier(fit.weightAdjustedVdot) : null;
+  const latestInbody = inbody[inbody.length - 1];
 
   const maxW = Math.max(...inbody.map((m) => m.weightKg), 1);
   const maxF = Math.max(...inbody.map((m) => m.bodyFatPct), 1);
@@ -68,8 +71,13 @@ export default async function Home() {
           다음 대회의 PB와 구간 기록을 예측합니다. — 가민 165 · 서울
         </p>
         <div className="pl-fitness">
-          {fit ? (
+          {fit && tier ? (
             <>
+              <div className={`pl-stat pl-stat-tier pl-tier-${tier.tier}`}>
+                <small>글로벌 러너 티어</small>
+                <b className="pl-tier-name">{tier.tier}</b>
+                <small>{tier.percentileLabel}</small>
+              </div>
               <div className="pl-stat">
                 <small>현재 추정 VDOT</small>
                 <b className="hl">{fit.weightAdjustedVdot.toFixed(1)}</b>
@@ -83,7 +91,9 @@ export default async function Home() {
               <div className="pl-stat">
                 <small>현재 체중</small>
                 <b>{fit.latestWeight}kg</b>
-                <small>기록 당시 {fit.baseWeight}kg</small>
+                <small>
+                  {latestInbody ? `골격근 ${latestInbody.muscleKg}kg · 체지방 ${latestInbody.bodyFatPct}%` : `기록 당시 ${fit.baseWeight}kg`}
+                </small>
               </div>
             </>
           ) : (
