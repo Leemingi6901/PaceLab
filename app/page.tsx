@@ -7,6 +7,7 @@ import {
   formatPace,
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
+import TrainingLog from "@/components/TrainingLog";
 
 export const dynamic = "force-dynamic";
 
@@ -26,14 +27,14 @@ export default async function Home() {
   const maxF = Math.max(...inbody.map((m) => m.bodyFatPct), 1);
   const maxM = Math.max(...inbody.map((m) => m.muscleKg), 1);
 
-  const recentTrainings = [...trainings].reverse().slice(0, 8);
   const now = Date.now();
-  const weekKm = trainings
-    .filter((t) => now - new Date(t.date).getTime() < 7 * 86400000)
-    .reduce((s, t) => s + t.distanceKm, 0);
-  const monthKm = trainings
-    .filter((t) => now - new Date(t.date).getTime() < 30 * 86400000)
-    .reduce((s, t) => s + t.distanceKm, 0);
+  const inLastDays = (dateStr: string, days: number) => now - new Date(dateStr).getTime() < days * 86400000;
+  const weekTrainings = trainings.filter((t) => inLastDays(t.date, 7));
+  const monthTrainings = trainings.filter((t) => inLastDays(t.date, 30));
+  const weekKm = weekTrainings.reduce((s, t) => s + t.distanceKm, 0);
+  const monthKm = monthTrainings.reduce((s, t) => s + t.distanceKm, 0);
+  const weekGain = weekTrainings.reduce((s, t) => s + (t.elevGainM ?? 0), 0);
+  const monthGain = monthTrainings.reduce((s, t) => s + (t.elevGainM ?? 0), 0);
 
   return (
     <div>
@@ -97,7 +98,9 @@ export default async function Home() {
               <small>km</small> / {monthKm.toFixed(1)}
               <small>km</small>
             </b>
-            <small>훈련 로그 기준</small>
+            <small>
+              ▲ {weekGain.toFixed(0)}m / {monthGain.toFixed(0)}m 누적 상승
+            </small>
           </div>
         </div>
       </section>
@@ -123,6 +126,7 @@ export default async function Home() {
                 <span className="pl-sub">
                   {r.distanceKm}km · {formatPace(parseTime(r.time) / r.distanceKm)}/km
                   {r.weightKg ? ` · ${r.weightKg}kg` : ""}
+                  {r.maxHr ? ` · 최대심박 ${r.maxHr}bpm` : ""}
                 </span>
               </div>
             ))}
@@ -184,39 +188,11 @@ export default async function Home() {
         <h2>
           러닝 <em>훈련 기록</em>
         </h2>
-        <p className="pl-section-desc">서울 인근 훈련 기록. 최근 8회를 보여줍니다.</p>
-        {recentTrainings.length === 0 ? (
-          <EmptyNote>
-            아직 훈련 기록이 없습니다. <a href="/admin">데이터 입력</a>에서 첫 훈련을 추가해보세요.
-          </EmptyNote>
-        ) : (
-          <div className="pl-table-wrap">
-            <table className="pl-table">
-              <thead>
-                <tr>
-                  <th>날짜</th>
-                  <th>거리</th>
-                  <th>시간</th>
-                  <th>페이스</th>
-                  <th>심박</th>
-                  <th>메모</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentTrainings.map((t) => (
-                  <tr key={`${t.date}-${t.distanceKm}-${t.time}`}>
-                    <td>{t.date}</td>
-                    <td>{t.distanceKm}km</td>
-                    <td>{t.time}</td>
-                    <td>{formatPace(parseTime(t.time) / t.distanceKm)}/km</td>
-                    <td>{t.avgHr ? `${t.avgHr}bpm` : "—"}</td>
-                    <td>{t.note ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <p className="pl-section-desc">
+          서울 인근 훈련 기록. 최근 8회를 보여줍니다. 고도 보정 페이스(GAP)로 업/다운힐을 반영해 훈련 강도를
+          자동 분류합니다.
+        </p>
+        <TrainingLog trainings={trainings} predictions={predictions} />
       </section>
 
       {/* 04 PB 예측 */}

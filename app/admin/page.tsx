@@ -108,6 +108,9 @@ export default function AdminPage() {
             <Field label="당시 체중(kg)">
               <input name="weightKg" type="number" step="0.1" placeholder="70.5" />
             </Field>
+            <Field label="최대 심박수(bpm)">
+              <input name="maxHr" type="number" placeholder="185" />
+            </Field>
             <Field label="메모">
               <input name="note" placeholder="네거티브 스플릿 성공" />
             </Field>
@@ -144,6 +147,12 @@ export default function AdminPage() {
             </Field>
             <Field label="평균 심박(bpm)">
               <input name="avgHr" type="number" placeholder="152" />
+            </Field>
+            <Field label="총 상승(m)">
+              <input name="elevGainM" type="number" step="1" min="0" placeholder="0" />
+            </Field>
+            <Field label="총 하강(m)">
+              <input name="elevLossM" type="number" step="1" min="0" placeholder="0" />
             </Field>
             <Field label="메모">
               <input name="note" placeholder="한강 LSD, 잠실 인터벌…" />

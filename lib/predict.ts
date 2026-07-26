@@ -11,6 +11,7 @@ export interface RaceRecord {
   distanceKm: number;
   time: string;
   weightKg?: number;
+  maxHr?: number;
   note?: string;
 }
 
@@ -191,4 +192,34 @@ export function predictCourseSplits(
   });
 
   return { totalSec: cumulative, splits };
+}
+
+/**
+ * 고도 보정 페이스 (Grade-Adjusted Pace):
+ * 업힐/다운힐을 반영해 "평지였다면 어느 정도 페이스였을지"로 환산한다.
+ * 코스 구간 예측과 동일한 계수(상승 10m당 +9초, 하강 10m당 -4초)를 역으로 적용 —
+ * 오르막에서 느려진 시간은 빼고(더 빠른 평지 페이스로 환산), 내리막에서 번 시간은 더한다.
+ */
+export function gradeAdjustedPace(timeSec: number, distanceKm: number, elevGainM: number, elevLossM: number): number {
+  const elevAdjSec = (elevGainM / 10) * 9 - (elevLossM / 10) * 4;
+  const flatSec = Math.max(0, timeSec - elevAdjSec);
+  return flatSec / distanceKm;
+}
+
+export type IntensityZone = "이지" | "마라톤" | "템포" | "인터벌" | "레페티션" | "—";
+
+/** 고도 보정 페이스를 현재 체력의 거리별 예상 페이스와 비교해 강도 구간을 분류한다 (Daniels 훈련 존 기준) */
+export function classifyIntensity(gapSecPerKm: number, predictions: Prediction[]): IntensityZone {
+  if (predictions.length === 0) return "—";
+  const byLabel = Object.fromEntries(predictions.map((p) => [p.label, p.paceSecPerKm]));
+  const full = byLabel["풀코스"];
+  const half = byLabel["하프"];
+  const tenK = byLabel["10K"];
+  const fiveK = byLabel["5K"];
+  if (!full || !half || !tenK || !fiveK) return "—";
+  if (gapSecPerKm >= full * 1.08) return "이지";
+  if (gapSecPerKm >= (full + half) / 2) return "마라톤";
+  if (gapSecPerKm >= (half + tenK) / 2) return "템포";
+  if (gapSecPerKm >= (tenK + fiveK) / 2) return "인터벌";
+  return "레페티션";
 }

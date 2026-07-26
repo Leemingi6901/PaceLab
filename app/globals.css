@@ -491,3 +491,145 @@ em {
   opacity: 0.5;
   cursor: default;
 }
+
+/* 훈련 로그: 인증번호 인라인 + 수정/삭제 */
+.pl-pin-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.pl-pin-inline input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.88rem;
+  width: 180px;
+  outline: none;
+  color-scheme: dark;
+}
+
+.pl-pin-inline input:focus {
+  border-color: var(--accent);
+}
+
+.pl-msg-inline {
+  font-size: 0.82rem;
+  padding: 5px 10px;
+  border-radius: 999px;
+}
+
+.pl-msg-inline.ok {
+  color: var(--accent);
+  background: rgba(45, 212, 191, 0.1);
+}
+
+.pl-msg-inline.err {
+  color: var(--accent2);
+  background: rgba(244, 114, 182, 0.1);
+}
+
+.pl-zone {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.pl-zone.zone-easy {
+  color: var(--accent);
+  border-color: rgba(45, 212, 191, 0.35);
+  background: rgba(45, 212, 191, 0.08);
+}
+
+.pl-zone.zone-marathon {
+  color: #a3e635;
+  border-color: rgba(163, 230, 53, 0.35);
+  background: rgba(163, 230, 53, 0.08);
+}
+
+.pl-zone.zone-tempo {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.pl-zone.zone-interval {
+  color: #fb923c;
+  border-color: rgba(251, 146, 60, 0.35);
+  background: rgba(251, 146, 60, 0.08);
+}
+
+.pl-zone.zone-rep {
+  color: var(--accent2);
+  border-color: rgba(244, 114, 182, 0.35);
+  background: rgba(244, 114, 182, 0.08);
+}
+
+.pl-row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.pl-icon-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pl-icon-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.pl-icon-btn.danger:hover:not(:disabled) {
+  color: var(--accent2);
+  border-color: var(--accent2);
+}
+
+.pl-icon-btn.ok {
+  color: var(--accent);
+  border-color: rgba(45, 212, 191, 0.35);
+}
+
+.pl-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pl-row-editing input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: var(--text);
+  font-size: 0.82rem;
+  outline: none;
+  color-scheme: dark;
+}
+
+.pl-row-editing input:focus {
+  border-color: var(--accent);
+}
+
+.pl-edit-elev {
+  display: flex;
+  gap: 4px;
+}
+
+.pl-edit-hint {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
