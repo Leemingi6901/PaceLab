@@ -2,12 +2,14 @@ import {
   currentFitness,
   predictAll,
   predictCourseSplits,
+  recommendWorkouts,
   parseTime,
   formatTime,
   formatPace,
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
 import TrainingLog from "@/components/TrainingLog";
+import MonthlyMileage from "@/components/MonthlyMileage";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,7 @@ export default async function Home() {
   const fit = currentFitness(races, inbody);
   const predictions = predictAll(races, inbody);
   const course = upcoming ? predictCourseSplits(races, inbody, upcoming) : null;
+  const workouts = recommendWorkouts(trainings, predictions);
 
   const maxW = Math.max(...inbody.map((m) => m.weightKg), 1);
   const maxF = Math.max(...inbody.map((m) => m.bodyFatPct), 1);
@@ -46,6 +49,8 @@ export default async function Home() {
           <a href="#records">Records</a>
           <a href="#condition">Condition</a>
           <a href="#training">Training</a>
+          <a href="#mileage">Mileage</a>
+          <a href="#nextworkout">Workout</a>
           <a href="#prediction">Prediction</a>
           <a href="#nextrace">Next Race</a>
           <a href="https://daniel-tech-wiki-korea97.vercel.app">Daniel.wiki ↗</a>
@@ -195,9 +200,50 @@ export default async function Home() {
         <TrainingLog trainings={trainings} predictions={predictions} />
       </section>
 
-      {/* 04 PB 예측 */}
+      {/* 04 월간 마일리지 */}
+      <section className="pl-section" id="mileage">
+        <span className="pl-eyebrow">04 — MONTHLY MILEAGE</span>
+        <h2>
+          이번 달 <em>러닝 마일리지</em>
+        </h2>
+        <p className="pl-section-desc">대회와 훈련 기록을 날짜 기준으로 합산합니다. 대회일은 점으로 표시됩니다.</p>
+        <MonthlyMileage races={races} trainings={trainings} />
+      </section>
+
+      {/* 05 다음 훈련 추천 */}
+      <section className="pl-section" id="nextworkout">
+        <span className="pl-eyebrow">05 — NEXT WORKOUT</span>
+        <h2>
+          다음 훈련 <em>추천</em>
+        </h2>
+        <p className="pl-section-desc">
+          최근 훈련 강도·간격과 이번 주 훈련량을 바탕으로 난이도별 3가지를 제안합니다. 하나는 지금 시점에
+          가장 적합한 &quot;추천&quot;으로 표시됩니다.
+        </p>
+        {!workouts ? (
+          <EmptyNote>훈련 기록과 공식 대회 기록이 있어야 추천을 받을 수 있습니다.</EmptyNote>
+        ) : (
+          <div className="pl-grid">
+            {workouts.map((w) => (
+              <div key={w.level} className={`pl-card pl-workout${w.recommended ? " pl-workout-pick" : ""}`}>
+                {w.recommended && <span className="pl-pick-badge">지금 추천</span>}
+                <span className={`pl-badge pl-level-${w.level}`}>난이도 {w.level}</span>
+                <h3>{w.title}</h3>
+                <p className="pl-workout-structure">{w.structure}</p>
+                <div className="pl-workout-stats">
+                  <span>{w.distanceKm}km</span>
+                  <span>{formatPace(w.paceSecPerKm)}/km</span>
+                </div>
+                <p className="pl-workout-reason">{w.reason}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 06 PB 예측 */}
       <section className="pl-section" id="prediction">
-        <span className="pl-eyebrow">04 — PB PREDICTION</span>
+        <span className="pl-eyebrow">06 — PB PREDICTION</span>
         <h2>
           거리별 <em>예상 PB</em>
         </h2>
@@ -220,9 +266,9 @@ export default async function Home() {
         )}
       </section>
 
-      {/* 05 다음 대회 */}
+      {/* 07 다음 대회 */}
       <section className="pl-section" id="nextrace">
-        <span className="pl-eyebrow">05 — NEXT RACE</span>
+        <span className="pl-eyebrow">07 — NEXT RACE</span>
         <h2>
           다음 대회 <em>구간 전략</em>
         </h2>

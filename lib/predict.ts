@@ -5,6 +5,8 @@
  * - Riegel/VDOT 기반으로 목표 거리 기록과 구간(스플릿) 예측
  */
 
+import type { Training } from "./store";
+
 export interface RaceRecord {
   race: string;
   date: string;
@@ -222,4 +224,114 @@ export function classifyIntensity(gapSecPerKm: number, predictions: Prediction[]
   if (gapSecPerKm >= (half + tenK) / 2) return "템포";
   if (gapSecPerKm >= (tenK + fiveK) / 2) return "인터벌";
   return "레페티션";
+}
+
+export interface WorkoutRecommendation {
+  level: "하" | "중" | "상";
+  title: string;
+  distanceKm: number;
+  paceSecPerKm: number;
+  structure: string;
+  reason: string;
+  recommended: boolean;
+}
+
+/**
+ * 다음 훈련 추천:
+ * - 최근 4주 훈련량(주간 평균)과 이번 주 훈련량을 비교해 과부하 여부 판단
+ * - 최근 "템포/인터벌/레페티션" 강도 훈련 이후 경과일로 다음 자극 시점 판단
+ * - 위 신호로 하/중/상 중 하나를 "추천"으로 표시하고, 나머지도 항상 함께 제시
+ */
+export function recommendWorkouts(trainings: Training[], predictions: Prediction[]): WorkoutRecommendation[] | null {
+  if (predictions.length === 0 || trainings.length === 0) return null;
+
+  const byLabel = Object.fromEntries(predictions.map((p) => [p.label, p.paceSecPerKm]));
+  const fullPace = byLabel["풀코스"];
+  const halfPace = byLabel["하프"];
+  const tenKPace = byLabel["10K"];
+  const fiveKPace = byLabel["5K"];
+  if (!fullPace || !halfPace || !tenKPace || !fiveKPace) return null;
+
+  const now = Date.now();
+  const sorted = [...trainings].sort((a, b) => a.date.localeCompare(b.date));
+  const last = sorted[sorted.length - 1];
+  const daysAgo = (dateStr: string) => Math.floor((now - new Date(dateStr).getTime()) / 86400000);
+
+  const last28 = sorted.filter((t) => daysAgo(t.date) < 28);
+  const last7 = sorted.filter((t) => daysAgo(t.date) < 7);
+  const avgWeeklyKm = last28.length ? last28.reduce((s, t) => s + t.distanceKm, 0) / 4 : 0;
+  const thisWeekKm = last7.reduce((s, t) => s + t.distanceKm, 0);
+  const pool = last28.length ? last28 : sorted;
+  const avgDistance = pool.reduce((s, t) => s + t.distanceKm, 0) / pool.length;
+
+  let daysSinceHard = 999;
+  for (const t of sorted) {
+    const gap = gradeAdjustedPace(parseTime(t.time), t.distanceKm, t.elevGainM ?? 0, t.elevLossM ?? 0);
+    const zone = classifyIntensity(gap, predictions);
+    if (zone === "템포" || zone === "인터벌" || zone === "레페티션") {
+      const d = daysAgo(t.date);
+      if (d < daysSinceHard) daysSinceHard = d;
+    }
+  }
+  const daysSinceLast = last ? daysAgo(last.date) : 999;
+  const overloaded = avgWeeklyKm > 0 && thisWeekKm > avgWeeklyKm * 1.3;
+
+  let recommendedLevel: "하" | "중" | "상";
+  let topReason: string;
+  if (daysSinceLast <= 0 || overloaded) {
+    recommendedLevel = "하";
+    topReason = overloaded
+      ? "이번 주 주행거리가 평소보다 많아요 — 회복 위주로 가볍게 다녀오세요."
+      : "오늘 이미 훈련하셨네요 — 다음엔 가볍게 회복 조깅을 권장해요.";
+  } else if (daysSinceHard >= 6) {
+    recommendedLevel = "상";
+    topReason = `강도 높은 훈련을 ${daysSinceHard}일째 쉬셨어요 — 인터벌로 자극을 줄 타이밍입니다.`;
+  } else if (daysSinceHard >= 3) {
+    recommendedLevel = "중";
+    topReason = "회복과 자극의 균형이 좋은 시점이에요 — 템포런이 적당합니다.";
+  } else {
+    recommendedLevel = "하";
+    topReason = "최근 강도 높은 훈련을 하셨으니 이번엔 가볍게 회복하세요.";
+  }
+
+  const easyDistance = Math.max(3, Math.round(avgDistance * 0.8 * 10) / 10);
+  const easyPace = fullPace * 1.12;
+
+  const tempoKm = Math.min(8, Math.max(3, Math.round(avgDistance * 0.6 * 10) / 10));
+  const tempoPace = halfPace;
+  const tempoTotal = Math.round((tempoKm + 4) * 10) / 10;
+
+  const intervalReps = Math.min(10, Math.max(4, Math.round(avgWeeklyKm / 8) || 4));
+  const intervalPace = (tenKPace + fiveKPace) / 2;
+  const intervalTotal = Math.round((2 + intervalReps * 1 + (intervalReps - 1) * 0.4 + 2) * 10) / 10;
+
+  return [
+    {
+      level: "하",
+      title: "회복 조깅",
+      distanceKm: easyDistance,
+      paceSecPerKm: easyPace,
+      structure: `${easyDistance}km 전 구간 이지 페이스 — 대화 가능한 강도로`,
+      reason: recommendedLevel === "하" ? topReason : "가볍게 몸을 풀고 다음 훈련을 준비하고 싶을 때",
+      recommended: recommendedLevel === "하",
+    },
+    {
+      level: "중",
+      title: "템포런",
+      distanceKm: tempoTotal,
+      paceSecPerKm: tempoPace,
+      structure: `웜업 2km + 템포 ${tempoKm}km(하프 페이스) + 쿨다운 2km`,
+      reason: recommendedLevel === "중" ? topReason : "젖산역치를 끌어올리고 싶을 때",
+      recommended: recommendedLevel === "중",
+    },
+    {
+      level: "상",
+      title: "인터벌",
+      distanceKm: intervalTotal,
+      paceSecPerKm: intervalPace,
+      structure: `웜업 2km + (1km × ${intervalReps}회, 인터벌 페이스 / 400m 조깅 리커버리) + 쿨다운 2km`,
+      reason: recommendedLevel === "상" ? topReason : "스피드와 VO2max를 자극하고 싶을 때",
+      recommended: recommendedLevel === "상",
+    },
+  ];
 }

@@ -633,3 +633,185 @@ em {
   color: var(--muted);
   font-size: 0.76rem;
 }
+
+/* 월간 마일리지 캘린더 */
+.pl-calendar {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+}
+
+.pl-calendar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pl-calendar-head h3 {
+  font-size: 1.15rem;
+}
+
+.pl-calendar-sub {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.pl-calendar-total {
+  text-align: right;
+}
+
+.pl-calendar-total b {
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+}
+
+.pl-calendar-total small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.pl-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.pl-cal-weekdays {
+  margin-bottom: 6px;
+}
+
+.pl-cal-weekday {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding-bottom: 4px;
+}
+
+.pl-cal-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.pl-cal-cell.empty {
+  border: none;
+}
+
+.pl-cal-cell.active {
+  background: rgba(45, 212, 191, calc(0.12 + var(--intensity, 0) * 0.5));
+  border-color: rgba(45, 212, 191, calc(0.25 + var(--intensity, 0) * 0.4));
+}
+
+.pl-cal-cell.today {
+  border-color: var(--accent3);
+  box-shadow: 0 0 0 1px var(--accent3);
+}
+
+.pl-cal-day {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.pl-cal-cell.active .pl-cal-day {
+  color: var(--text);
+}
+
+.pl-cal-km {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pl-cal-race-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent2);
+}
+
+/* 다음 훈련 추천 카드 */
+.pl-workout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.pl-workout-pick {
+  border-color: rgba(45, 212, 191, 0.55);
+  box-shadow: 0 14px 40px rgba(45, 212, 191, 0.12);
+}
+
+.pl-pick-badge {
+  position: absolute;
+  top: -10px;
+  right: 18px;
+  background: linear-gradient(90deg, var(--accent), var(--accent3));
+  color: #06231f;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 12px;
+  border-radius: 999px;
+}
+
+.pl-level-하 {
+  color: var(--accent);
+  border-color: rgba(45, 212, 191, 0.25);
+  background: rgba(45, 212, 191, 0.1);
+}
+
+.pl-level-중 {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.25);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.pl-level-상 {
+  color: var(--accent2);
+  border-color: rgba(244, 114, 182, 0.25);
+  background: rgba(244, 114, 182, 0.1);
+}
+
+.pl-workout h3 {
+  font-size: 1.1rem;
+  margin: 4px 0 8px;
+}
+
+.pl-workout-structure {
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  flex: 1;
+}
+
+.pl-workout-stats {
+  display: flex;
+  gap: 12px;
+  margin: 14px 0 10px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--accent2);
+}
+
+.pl-workout-reason {
+  color: var(--muted);
+  font-size: 0.82rem;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
