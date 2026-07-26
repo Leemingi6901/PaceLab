@@ -1,8 +1,8 @@
 /**
  * PB 예측 엔진
- * - Jack Daniels VDOT 공식으로 기록 → 체력 지표(VDOT) 환산
+ * - VDOT 공식으로 기록 → 체력 지표(VDOT) 환산
  * - 최근 기록에 가중치를 두고, 인바디 체중 변화로 보정
- * - Riegel/VDOT 기반으로 목표 거리 기록과 구간(스플릿) 예측
+ * - VDOT 기반으로 목표 거리 기록과 구간(스플릿) 예측
  */
 
 import type { Training } from "./store";
@@ -56,7 +56,7 @@ export function formatPace(secPerKm: number): string {
   return `${m}'${String(s).padStart(2, "0")}"`;
 }
 
-/** Daniels-Gilbert: 거리(m)·시간(분) → VDOT */
+/** 거리(m)·시간(분) → VDOT */
 export function vdotFromRace(distanceM: number, timeMin: number): number {
   const v = distanceM / timeMin; // m/min
   const vo2 = -4.6 + 0.182258 * v + 0.000104 * v * v;
@@ -208,9 +208,22 @@ export function gradeAdjustedPace(timeSec: number, distanceKm: number, elevGainM
   return flatSec / distanceKm;
 }
 
+/**
+ * 트레드밀 보정 계수:
+ * 트레드밀은 벨트가 다리를 끌어주고 공기저항이 없어 같은 페이스라도 실외보다 쉽다.
+ * 실측 결과(30분/6'00"페이스 실내 ≈ 33분/6'36"페이스 실외 강도)를 반영해 +10% 적용 —
+ * 같은 거리를 뛴 것으로 치되, 체감 강도를 비교할 땐 시간을 10% 늘려 실외 환산한다.
+ */
+export const TREADMILL_CORRECTION = 1.1;
+
+/** 트레드밀이면 기록 시간에 보정 계수를 적용해 "실외 환산 시간(초)"을 반환 */
+export function effectiveTimeSec(rawTimeSec: number, treadmill?: boolean): number {
+  return treadmill ? rawTimeSec * TREADMILL_CORRECTION : rawTimeSec;
+}
+
 export type IntensityZone = "이지" | "마라톤" | "템포" | "인터벌" | "레페티션" | "—";
 
-/** 고도 보정 페이스를 현재 체력의 거리별 예상 페이스와 비교해 강도 구간을 분류한다 (Daniels 훈련 존 기준) */
+/** 고도 보정 페이스를 현재 체력의 거리별 예상 페이스와 비교해 강도 구간을 분류한다 */
 export function classifyIntensity(gapSecPerKm: number, predictions: Prediction[]): IntensityZone {
   if (predictions.length === 0) return "—";
   const byLabel = Object.fromEntries(predictions.map((p) => [p.label, p.paceSecPerKm]));
@@ -266,7 +279,8 @@ export function recommendWorkouts(trainings: Training[], predictions: Prediction
 
   let daysSinceHard = 999;
   for (const t of sorted) {
-    const gap = gradeAdjustedPace(parseTime(t.time), t.distanceKm, t.elevGainM ?? 0, t.elevLossM ?? 0);
+    const timeSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
+    const gap = gradeAdjustedPace(timeSec, t.distanceKm, t.elevGainM ?? 0, t.elevLossM ?? 0);
     const zone = classifyIntensity(gap, predictions);
     if (zone === "템포" || zone === "인터벌" || zone === "레페티션") {
       const d = daysAgo(t.date);

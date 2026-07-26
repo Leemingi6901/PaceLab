@@ -9,6 +9,7 @@ export interface Training {
   avgHr?: number;
   elevGainM?: number;
   elevLossM?: number;
+  treadmill?: boolean;
   note?: string;
 }
 

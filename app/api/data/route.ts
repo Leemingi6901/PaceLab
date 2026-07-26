@@ -47,6 +47,7 @@ function buildTraining(e: Record<string, unknown>): Omit<Training, "id"> {
     avgHr: num(e.avgHr),
     elevGainM: num(e.elevGainM) ?? 0,
     elevLossM: num(e.elevLossM) ?? 0,
+    treadmill: e.treadmill === true || e.treadmill === "true" || e.treadmill === "on",
     note: e.note ? String(e.note) : undefined,
   };
 }

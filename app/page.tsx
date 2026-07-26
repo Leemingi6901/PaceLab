@@ -247,7 +247,7 @@ export default async function Home() {
           거리별 <em>예상 PB</em>
         </h2>
         <p className="pl-section-desc">
-          Jack Daniels VDOT 모델 기반. 최근 대회일수록 가중치를 높이고(6개월 반감기), 체중 변화를 ±5% 범위에서
+          VDOT 모델 기반. 최근 대회일수록 가중치를 높이고(6개월 반감기), 체중 변화를 ±5% 범위에서
           보정했습니다.
         </p>
         {predictions.length === 0 ? (

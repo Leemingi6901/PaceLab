@@ -154,6 +154,10 @@ export default function AdminPage() {
             <Field label="총 하강(m)">
               <input name="elevLossM" type="number" step="1" min="0" placeholder="0" />
             </Field>
+            <label className="pl-checkbox">
+              <input type="checkbox" name="treadmill" />
+              <span>트레드밀에서 진행 (페이스 10% 보정 적용)</span>
+            </label>
             <Field label="메모">
               <input name="note" placeholder="한강 LSD, 잠실 인터벌…" />
             </Field>

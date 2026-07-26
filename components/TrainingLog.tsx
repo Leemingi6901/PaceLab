@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   parseTime,
   formatPace,
+  effectiveTimeSec,
   gradeAdjustedPace,
   classifyIntensity,
   type Prediction,
@@ -23,6 +24,7 @@ interface EditForm {
   avgHr: string;
   elevGainM: string;
   elevLossM: string;
+  treadmill: boolean;
   note: string;
 }
 
@@ -34,6 +36,7 @@ function toForm(t: Training): EditForm {
     avgHr: t.avgHr ? String(t.avgHr) : "",
     elevGainM: String(t.elevGainM ?? 0),
     elevLossM: String(t.elevLossM ?? 0),
+    treadmill: t.treadmill ?? false,
     note: t.note ?? "",
   };
 }
@@ -97,6 +100,7 @@ export default function TrainingLog({ trainings, predictions }: Props) {
             avgHr: form.avgHr || undefined,
             elevGainM: form.elevGainM || 0,
             elevLossM: form.elevLossM || 0,
+            treadmill: form.treadmill,
             note: form.note || undefined,
           },
         }),
@@ -170,7 +174,7 @@ export default function TrainingLog({ trainings, predictions }: Props) {
               <th>날짜</th>
               <th>거리</th>
               <th>시간</th>
-              <th>페이스</th>
+              <th>페이스(보정)</th>
               <th>고도</th>
               <th>강도</th>
               <th>심박</th>
@@ -182,7 +186,9 @@ export default function TrainingLog({ trainings, predictions }: Props) {
             {recent.map((t) => {
               const gain = t.elevGainM ?? 0;
               const loss = t.elevLossM ?? 0;
-              const gap = gradeAdjustedPace(parseTime(t.time), t.distanceKm, gain, loss);
+              const correctedSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
+              const correctedPace = correctedSec / t.distanceKm;
+              const gap = gradeAdjustedPace(correctedSec, t.distanceKm, gain, loss);
               const zone = classifyIntensity(gap, predictions);
               const isEditing = editingId === t.id;
 
@@ -208,6 +214,14 @@ export default function TrainingLog({ trainings, predictions }: Props) {
                         placeholder="58:30"
                         style={{ width: 70 }}
                       />
+                      <label className="pl-checkbox pl-checkbox-sm">
+                        <input
+                          type="checkbox"
+                          checked={form.treadmill}
+                          onChange={(e) => setForm({ ...form, treadmill: e.target.checked })}
+                        />
+                        <span>트레드밀</span>
+                      </label>
                     </td>
                     <td>
                       <span className="pl-edit-hint">자동계산</span>
@@ -265,8 +279,11 @@ export default function TrainingLog({ trainings, predictions }: Props) {
                 <tr key={t.id}>
                   <td>{t.date}</td>
                   <td>{t.distanceKm}km</td>
-                  <td>{t.time}</td>
-                  <td>{formatPace(parseTime(t.time) / t.distanceKm)}/km</td>
+                  <td>
+                    {t.time}
+                    {t.treadmill && <span className="pl-treadmill-tag">트레드밀</span>}
+                  </td>
+                  <td>{formatPace(correctedPace)}/km</td>
                   <td>
                     {gain === 0 && loss === 0 ? (
                       "—"
