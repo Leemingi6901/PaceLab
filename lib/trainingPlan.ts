@@ -156,6 +156,16 @@ export function buildTrainingPlan(
 
   // 사용자가 특정 달에 목표 마일리지를 입력했으면, 그 달에 속한 주들을 성장 곡선 모양은
   // 유지한 채 스케일링해서 합계가 입력값과 정확히 맞도록 조정한다.
+  // 계획이 시작되는 이번 달은 이미 지나간 날짜만큼 실제 로그된 거리가 있으므로, 그만큼을
+  // 목표에서 빼고 "남은 날짜에 뛰어야 할 양"만 주간 목표에 반영한다.
+  const currentMonth = todayStr.slice(0, 7);
+  const loggedThisMonth =
+    Math.round(
+      trainings
+        .filter((t) => t.date.slice(0, 7) === currentMonth && t.date < todayStr)
+        .reduce((s, t) => s + t.distanceKm, 0) * 10
+    ) / 10;
+
   if (monthlyTargetKm) {
     const byMonth = new Map<string, PlanWeek[]>();
     for (const w of weeks) {
@@ -165,9 +175,10 @@ export function buildTrainingPlan(
       else byMonth.set(month, [w]);
     }
     for (const [month, monthWeeks] of byMonth) {
-      const target = monthlyTargetKm[month];
+      const rawTarget = monthlyTargetKm[month];
       const baseSum = monthWeeks.reduce((s, w) => s + w.targetKm, 0);
-      if (!target || target <= 0 || baseSum <= 0) continue;
+      if (!rawTarget || rawTarget <= 0 || baseSum <= 0) continue;
+      const target = month === currentMonth ? Math.max(0, rawTarget - loggedThisMonth) : rawTarget;
       const scale = target / baseSum;
       for (const w of monthWeeks) {
         w.targetKm = Math.round(w.targetKm * scale * 10) / 10;
@@ -175,8 +186,6 @@ export function buildTrainingPlan(
       }
     }
   }
-
-  const totalPlanKm = Math.round(weeks.reduce((s, w) => s + w.targetKm, 0) * 10) / 10;
 
   const monthlyMap = new Map<string, { weeks: number; totalKm: number }>();
   for (const w of weeks) {
@@ -186,6 +195,12 @@ export function buildTrainingPlan(
     cur.totalKm = Math.round((cur.totalKm + w.targetKm) * 10) / 10;
     monthlyMap.set(month, cur);
   }
+  // 이번 달은 계획 주차 목표뿐 아니라 이미 실제로 뛴 거리도 합쳐야 그 달의 진짜 누적치가 됨
+  if (monthlyMap.has(currentMonth) && loggedThisMonth > 0) {
+    const cur = monthlyMap.get(currentMonth)!;
+    cur.totalKm = Math.round((cur.totalKm + loggedThisMonth) * 10) / 10;
+  }
+
   const monthlyPeriods: MonthlyPeriod[] = [...monthlyMap.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, v]) => ({
@@ -194,6 +209,8 @@ export function buildTrainingPlan(
       totalKm: v.totalKm,
       targetKm: monthlyTargetKm?.[month],
     }));
+
+  const totalPlanKm = Math.round(monthlyPeriods.reduce((s, p) => s + p.totalKm, 0) * 10) / 10;
 
   return { totalWeeks, totalPlanKm, monthlyPeriods };
 }
