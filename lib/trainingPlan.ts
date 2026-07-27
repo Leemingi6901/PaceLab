@@ -28,6 +28,14 @@ export interface PlanWeek {
   isCutback: boolean;
 }
 
+export interface PhasePeriod {
+  phase: TrainingPhase;
+  startDate: string;
+  endDate: string;
+  weeks: number;
+  totalKm: number;
+}
+
 export interface TrainingPlanData {
   totalWeeks: number;
   phaseWeeks: { base: number; build: number; peak: number; taper: number };
@@ -38,6 +46,10 @@ export interface TrainingPlanData {
   peakLongRunKm: number;
   /** 대회 거리 기반 이론상 목표 롱런 (참고용 — 총량이 못 받쳐주면 못 도달할 수 있음) */
   idealPeakLongRunKm: number;
+  /** 대회일까지 전체 계획의 누적 목표 거리 */
+  totalPlanKm: number;
+  /** 단계(기초/빌드업/피크/테이퍼)별 기간과 그 기간의 누적 목표 거리 */
+  phasePeriods: PhasePeriod[];
   weeks: PlanWeek[];
 }
 
@@ -194,6 +206,25 @@ export function buildTrainingPlan(
     cursor = addDaysStr(cursor, 7);
   }
 
+  const phasePeriods: PhasePeriod[] = [];
+  for (const w of weeks) {
+    const current = phasePeriods[phasePeriods.length - 1];
+    if (current && current.phase === w.phase) {
+      current.endDate = addDaysStr(w.startDate, 6);
+      current.weeks += 1;
+      current.totalKm = Math.round((current.totalKm + w.targetKm) * 10) / 10;
+    } else {
+      phasePeriods.push({
+        phase: w.phase,
+        startDate: w.startDate,
+        endDate: addDaysStr(w.startDate, 6),
+        weeks: 1,
+        totalKm: w.targetKm,
+      });
+    }
+  }
+  const totalPlanKm = Math.round(weeks.reduce((s, w) => s + w.targetKm, 0) * 10) / 10;
+
   return {
     totalWeeks,
     phaseWeeks: { base, build, peak, taper },
@@ -202,6 +233,8 @@ export function buildTrainingPlan(
     startLongRunKm: Math.round(startLongRunKm * 10) / 10,
     peakLongRunKm: Math.round(achievedPeakLongRunKm * 10) / 10,
     idealPeakLongRunKm,
+    totalPlanKm,
+    phasePeriods,
     weeks,
   };
 }
