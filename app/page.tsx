@@ -9,8 +9,11 @@ import {
   formatPace,
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
+import { buildLoadSeries, summarizeLoad } from "@/lib/trainingLoad";
 import TrainingLog from "@/components/TrainingLog";
 import MonthlyMileage from "@/components/MonthlyMileage";
+import TrainingLoad from "@/components/TrainingLoad";
+import CourseElevation from "@/components/CourseElevation";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +28,9 @@ export default async function Home() {
   const fit = currentFitness(races, inbody);
   const predictions = predictAll(races, inbody);
   const course = upcoming ? predictCourseSplits(races, inbody, upcoming) : null;
-  const workouts = recommendWorkouts(trainings, predictions);
+  const loadSeries = buildLoadSeries(races, inbody, trainings);
+  const loadSummary = summarizeLoad(loadSeries);
+  const workouts = recommendWorkouts(trainings, predictions, loadSummary?.tsb);
   const tier = fit ? getRunnerTier(fit.weightAdjustedVdot) : null;
   const latestInbody = inbody[inbody.length - 1];
 
@@ -53,6 +58,7 @@ export default async function Home() {
           <a href="#condition">Condition</a>
           <a href="#training">Training</a>
           <a href="#mileage">Mileage</a>
+          <a href="#load">Load</a>
           <a href="#nextworkout">Workout</a>
           <a href="#prediction">Prediction</a>
           <a href="#nextrace">Next Race</a>
@@ -219,9 +225,26 @@ export default async function Home() {
         <MonthlyMileage races={races} trainings={trainings} />
       </section>
 
-      {/* 05 다음 훈련 추천 */}
+      {/* 05 훈련 부하 */}
+      <section className="pl-section" id="load">
+        <span className="pl-eyebrow">05 — TRAINING LOAD</span>
+        <h2>
+          훈련 부하 <em>&amp; 컨디션</em>
+        </h2>
+        <p className="pl-section-desc">
+          Banister 임펄스-반응 모델. 세션마다 시간×강도² 기반 부하를 구해 체력(CTL, 42일 지수평활)과
+          피로도(ATL, 7일 지수평활)를 매일 갱신하고, 그 차이(TSB)로 오늘의 컨디션을 판단합니다.
+        </p>
+        {!loadSummary ? (
+          <EmptyNote>공식 대회 기록과 훈련 기록이 있어야 훈련 부하를 계산할 수 있습니다.</EmptyNote>
+        ) : (
+          <TrainingLoad summary={loadSummary} />
+        )}
+      </section>
+
+      {/* 06 다음 훈련 추천 */}
       <section className="pl-section" id="nextworkout">
-        <span className="pl-eyebrow">05 — NEXT WORKOUT</span>
+        <span className="pl-eyebrow">06 — NEXT WORKOUT</span>
         <h2>
           다음 훈련 <em>추천</em>
         </h2>
@@ -252,7 +275,7 @@ export default async function Home() {
 
       {/* 06 PB 예측 */}
       <section className="pl-section" id="prediction">
-        <span className="pl-eyebrow">06 — PB PREDICTION</span>
+        <span className="pl-eyebrow">07 — PB PREDICTION</span>
         <h2>
           거리별 <em>예상 PB</em>
         </h2>
@@ -277,7 +300,7 @@ export default async function Home() {
 
       {/* 07 다음 대회 */}
       <section className="pl-section" id="nextrace">
-        <span className="pl-eyebrow">07 — NEXT RACE</span>
+        <span className="pl-eyebrow">08 — NEXT RACE</span>
         <h2>
           다음 대회 <em>구간 전략</em>
         </h2>
@@ -306,6 +329,9 @@ export default async function Home() {
                 <div className="pl-total">{formatTime(course.totalSec)}</div>
               </div>
             </div>
+            {upcoming.elevationProfile && upcoming.elevationProfile.length >= 2 && (
+              <CourseElevation profile={upcoming.elevationProfile} distanceKm={upcoming.distanceKm} />
+            )}
             <div className="pl-table-wrap">
               <table className="pl-table">
                 <thead>

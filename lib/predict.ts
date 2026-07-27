@@ -31,6 +31,52 @@ export interface CourseSegment {
   elevLoss: number;
 }
 
+export interface ElevationPoint {
+  km: number;
+  elevM: number;
+}
+
+function elevAt(profile: ElevationPoint[], km: number): number {
+  if (km <= profile[0].km) return profile[0].elevM;
+  const last = profile[profile.length - 1];
+  if (km >= last.km) return last.elevM;
+  for (let i = 0; i < profile.length - 1; i++) {
+    const a = profile[i];
+    const b = profile[i + 1];
+    if (km >= a.km && km <= b.km) {
+      const t = (km - a.km) / (b.km - a.km || 1);
+      return a.elevM + (b.elevM - a.elevM) * t;
+    }
+  }
+  return last.elevM;
+}
+
+/** 세밀한 고도 프로파일(km, 고도)을 bucketKm 단위 구간의 상승/하강 합계로 변환한다 */
+export function segmentsFromProfile(distanceKm: number, profile: ElevationPoint[], bucketKm = 5): CourseSegment[] {
+  const sorted = [...profile].sort((a, b) => a.km - b.km);
+  if (sorted.length < 2) return [];
+
+  const segments: CourseSegment[] = [];
+  for (let from = 0; from < distanceKm; from += bucketKm) {
+    const to = Math.min(from + bucketKm, distanceKm);
+    const inBucket = sorted.filter((p) => p.km > from && p.km < to);
+    const boundary: ElevationPoint[] = [
+      { km: from, elevM: elevAt(sorted, from) },
+      ...inBucket,
+      { km: to, elevM: elevAt(sorted, to) },
+    ];
+    let gain = 0;
+    let loss = 0;
+    for (let i = 0; i < boundary.length - 1; i++) {
+      const delta = boundary[i + 1].elevM - boundary[i].elevM;
+      if (delta > 0) gain += delta;
+      else loss += -delta;
+    }
+    segments.push({ fromKm: from, toKm: Math.round(to * 1000) / 1000, elevGain: Math.round(gain), elevLoss: Math.round(loss) });
+  }
+  return segments;
+}
+
 /** "1:47:20" | "47:30" → 초 */
 export function parseTime(t: string): number {
   const parts = t.split(":").map(Number);
@@ -284,7 +330,11 @@ export interface WorkoutRecommendation {
  * - 최근 "템포/인터벌/레페티션" 강도 훈련 이후 경과일로 다음 자극 시점 판단
  * - 위 신호로 하/중/상 중 하나를 "추천"으로 표시하고, 나머지도 항상 함께 제시
  */
-export function recommendWorkouts(trainings: Training[], predictions: Prediction[]): WorkoutRecommendation[] | null {
+export function recommendWorkouts(
+  trainings: Training[],
+  predictions: Prediction[],
+  tsb?: number
+): WorkoutRecommendation[] | null {
   if (predictions.length === 0 || trainings.length === 0) return null;
 
   const byLabel = Object.fromEntries(predictions.map((p) => [p.label, p.paceSecPerKm]));
@@ -319,6 +369,10 @@ export function recommendWorkouts(trainings: Training[], predictions: Prediction
   const daysSinceLast = last ? daysAgo(last.date) : 999;
   const overloaded = avgWeeklyKm > 0 && thisWeekKm > avgWeeklyKm * 1.3;
 
+  // 훈련 부하 모델(CTL/ATL/TSB)이 있으면 피로 신호를 최우선으로, 여유가 있으면 상향 조정에 참고한다
+  const veryFatigued = tsb !== undefined && tsb <= -20;
+  const wellRested = tsb !== undefined && tsb >= 10;
+
   let recommendedLevel: "하" | "중" | "상";
   let topReason: string;
   if (daysSinceLast <= 0 || overloaded) {
@@ -326,12 +380,19 @@ export function recommendWorkouts(trainings: Training[], predictions: Prediction
     topReason = overloaded
       ? "이번 주 주행거리가 평소보다 많아요 — 회복 위주로 가볍게 다녀오세요."
       : "오늘 이미 훈련하셨네요 — 다음엔 가볍게 회복 조깅을 권장해요.";
+  } else if (veryFatigued) {
+    recommendedLevel = "하";
+    topReason = `최근 훈련부하가 많이 쌓여 피로도가 높아요(TSB ${tsb!.toFixed(0)}) — 강도 높은 훈련보다 회복이 우선입니다.`;
   } else if (daysSinceHard >= 6) {
     recommendedLevel = "상";
-    topReason = `강도 높은 훈련을 ${daysSinceHard}일째 쉬셨어요 — 인터벌로 자극을 줄 타이밍입니다.`;
+    topReason = wellRested
+      ? `컨디션이 좋고(TSB ${tsb!.toFixed(0)}) 강도 높은 훈련을 ${daysSinceHard}일째 쉬셨어요 — 인터벌로 자극을 줄 타이밍입니다.`
+      : `강도 높은 훈련을 ${daysSinceHard}일째 쉬셨어요 — 인터벌로 자극을 줄 타이밍입니다.`;
   } else if (daysSinceHard >= 3) {
-    recommendedLevel = "중";
-    topReason = "회복과 자극의 균형이 좋은 시점이에요 — 템포런이 적당합니다.";
+    recommendedLevel = wellRested ? "상" : "중";
+    topReason = wellRested
+      ? `컨디션이 좋아요(TSB ${tsb!.toFixed(0)}) — 평소보다 이른 타이밍이지만 인터벌 자극을 줘도 좋습니다.`
+      : "회복과 자극의 균형이 좋은 시점이에요 — 템포런이 적당합니다.";
   } else {
     recommendedLevel = "하";
     topReason = "최근 강도 높은 훈련을 하셨으니 이번엔 가볍게 회복하세요.";

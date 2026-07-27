@@ -181,6 +181,14 @@ export default function AdminPage() {
             <Field label="코스 특징">
               <input name="courseNote" placeholder="전반 완만, 후반 언덕" />
             </Field>
+            <Field label="고도 프로파일 (선택)">
+              <textarea
+                name="elevationProfile"
+                rows={5}
+                placeholder={"km,고도(m) 한 줄에 하나씩\n0,78\n2,80\n4,98\n...\n42.195,78"}
+              />
+            </Field>
+            <span className="pl-edit-hint">비워두면 5km 단위 평지로 처리됩니다. 입력하면 구간별 상승/하강이 자동 계산됩니다.</span>
             <button disabled={busy}>{busy ? "저장 중…" : "예정 대회 등록"}</button>
           </form>
         </div>

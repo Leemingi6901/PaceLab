@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getData, saveData, type PaceLabData, type Training } from "@/lib/store";
-import type { RaceRecord, InbodyEntry } from "@/lib/predict";
+import { segmentsFromProfile, type RaceRecord, type InbodyEntry, type ElevationPoint } from "@/lib/predict";
 
 export const dynamic = "force-dynamic";
 
@@ -103,17 +103,39 @@ export async function POST(req: Request) {
       data.trainings.push({ id: crypto.randomUUID(), ...built });
       data.trainings.sort((a, b) => a.date.localeCompare(b.date));
     } else if (type === "upcoming") {
-      const e = entry as { name?: string; date?: string; distanceKm?: number; location?: string; courseNote?: string };
+      const e = entry as {
+        name?: string;
+        date?: string;
+        distanceKm?: number;
+        location?: string;
+        courseNote?: string;
+        elevationProfile?: string;
+      };
       const dist = Number(e.distanceKm);
       if (!e.name || !DATE_RE.test(e.date ?? "") || !(dist > 0)) {
         throw new Error("대회명/날짜(YYYY-MM-DD)/거리를 확인하세요.");
       }
-      // 고도 데이터가 없으면 5km 단위 평지 구간으로 생성 (나중에 수정 가능)
-      const segments = [];
-      for (let from = 0; from < dist; from += 5) {
-        const to = Math.min(from + 5, dist);
-        segments.push({ fromKm: from, toKm: Math.round(to * 1000) / 1000, elevGain: 0, elevLoss: 0 });
+
+      // "km,고도m" 한 줄에 하나씩 — 없으면 5km 단위 평지 구간으로 생성
+      let elevationProfile: ElevationPoint[] | undefined;
+      if (e.elevationProfile) {
+        elevationProfile = String(e.elevationProfile)
+          .split(/\r?\n/)
+          .map((line) => line.split(",").map((s) => Number(s.trim())))
+          .filter(([km, elevM]) => Number.isFinite(km) && Number.isFinite(elevM))
+          .map(([km, elevM]) => ({ km, elevM }))
+          .sort((a, b) => a.km - b.km);
+        if (elevationProfile.length < 2) elevationProfile = undefined;
       }
+
+      const segments = elevationProfile
+        ? segmentsFromProfile(dist, elevationProfile)
+        : Array.from({ length: Math.ceil(dist / 5) }, (_, i) => {
+            const from = i * 5;
+            const to = Math.min(from + 5, dist);
+            return { fromKm: from, toKm: Math.round(to * 1000) / 1000, elevGain: 0, elevLoss: 0 };
+          });
+
       data.upcoming = {
         name: String(e.name),
         date: e.date!,
@@ -121,6 +143,7 @@ export async function POST(req: Request) {
         location: e.location ? String(e.location) : "",
         courseNote: e.courseNote ? String(e.courseNote) : "",
         segments,
+        elevationProfile,
       };
     } else {
       throw new Error("알 수 없는 type입니다.");

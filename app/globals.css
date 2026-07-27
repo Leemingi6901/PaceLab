@@ -475,6 +475,23 @@ em {
   border-color: var(--accent);
 }
 
+.pl-field textarea {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  outline: none;
+  resize: vertical;
+  color-scheme: dark;
+}
+
+.pl-field textarea:focus {
+  border-color: var(--accent);
+}
+
 .pl-form button {
   margin-top: 8px;
   background: linear-gradient(90deg, var(--accent), var(--accent3));
@@ -935,4 +952,103 @@ em {
 }
 .pl-tier-언랭크 .pl-tier-name {
   color: var(--muted);
+}
+
+/* 훈련 부하 (CTL/ATL/TSB) */
+.pl-load-stats {
+  margin-top: 0;
+  justify-content: flex-start;
+}
+
+.pl-load-tsb b {
+  color: var(--text);
+}
+
+.pl-load-danger {
+  border-color: rgba(244, 114, 182, 0.5);
+}
+.pl-load-danger b {
+  color: var(--accent2) !important;
+}
+
+.pl-load-warn {
+  border-color: rgba(251, 191, 36, 0.5);
+}
+.pl-load-warn b {
+  color: #fbbf24 !important;
+}
+
+.pl-load-fresh {
+  border-color: rgba(45, 212, 191, 0.5);
+}
+.pl-load-fresh b {
+  color: var(--accent) !important;
+}
+
+.pl-load-chart {
+  margin-top: 28px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px;
+}
+
+.pl-load-chart svg {
+  width: 100%;
+  height: 130px;
+  display: block;
+  overflow: visible;
+}
+
+.pl-load-line-ctl,
+.pl-load-line-atl {
+  fill: none;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.pl-load-line-ctl {
+  stroke: var(--accent);
+}
+
+.pl-load-line-atl {
+  stroke: var(--accent2);
+  opacity: 0.75;
+}
+
+/* 코스 고도 프로파일 */
+.pl-elev-chart {
+  margin-bottom: 20px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px 20px 12px;
+}
+
+.pl-elev-chart svg {
+  width: 100%;
+  height: 110px;
+  display: block;
+}
+
+.pl-elev-line {
+  fill: none;
+  stroke: #fbbf24;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.pl-elev-axis-top {
+  text-align: right;
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-bottom: 4px;
+}
+
+.pl-elev-axis-bottom {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-top: 4px;
 }

@@ -1,5 +1,5 @@
 import { put, list, del } from "@vercel/blob";
-import type { RaceRecord, InbodyEntry, CourseSegment } from "./predict";
+import type { RaceRecord, InbodyEntry, CourseSegment, ElevationPoint } from "./predict";
 
 export interface Training {
   id: string;
@@ -20,6 +20,7 @@ export interface UpcomingRace {
   location: string;
   courseNote: string;
   segments: CourseSegment[];
+  elevationProfile?: ElevationPoint[];
 }
 
 export interface PaceLabData {

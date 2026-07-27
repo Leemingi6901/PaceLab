@@ -12,3 +12,7 @@ next-env.d.ts
 private/
 .vercel
 .env*
+
+# 회사 네트워크 SSL 인터셉션 루트 인증서 (로컬 환경 전용)
+corporate-ca.pem
+dev-office.cmd
