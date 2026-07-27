@@ -1,5 +1,4 @@
 import {
-  currentFitness,
   predictAll,
   predictCourseSplits,
   recommendWorkouts,
@@ -9,7 +8,7 @@ import {
   formatPace,
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
-import { buildLoadSeries, summarizeLoad } from "@/lib/trainingLoad";
+import { buildLoadSeries, summarizeLoad, estimateFitness } from "@/lib/trainingLoad";
 import TrainingLog from "@/components/TrainingLog";
 import MonthlyMileage from "@/components/MonthlyMileage";
 import TrainingLoad from "@/components/TrainingLoad";
@@ -25,11 +24,11 @@ export default async function Home() {
   const data = await getData();
   const { races, inbody, trainings, upcoming } = data;
 
-  const fit = currentFitness(races, inbody);
-  const predictions = predictAll(races, inbody);
-  const course = upcoming ? predictCourseSplits(races, inbody, upcoming) : null;
   const loadSeries = buildLoadSeries(races, inbody, trainings);
   const loadSummary = summarizeLoad(loadSeries);
+  const fit = estimateFitness(races, inbody, loadSeries);
+  const predictions = predictAll(fit);
+  const course = upcoming ? predictCourseSplits(fit, upcoming) : null;
   const workouts = recommendWorkouts(trainings, predictions, loadSummary?.tsb);
   const tier = fit ? getRunnerTier(fit.weightAdjustedVdot) : null;
   const latestInbody = inbody[inbody.length - 1];
@@ -54,13 +53,13 @@ export default async function Home() {
           Pace<span>Lab</span>
         </a>
         <nav>
+          <a href="#prediction">Prediction</a>
           <a href="#records">Records</a>
           <a href="#condition">Condition</a>
           <a href="#training">Training</a>
           <a href="#mileage">Mileage</a>
           <a href="#load">Load</a>
           <a href="#nextworkout">Workout</a>
-          <a href="#prediction">Prediction</a>
           <a href="#nextrace">Next Race</a>
         </nav>
       </header>
@@ -87,7 +86,11 @@ export default async function Home() {
               <div className="pl-stat">
                 <small>현재 추정 VDOT</small>
                 <b className="hl">{fit.weightAdjustedVdot.toFixed(1)}</b>
-                <small>체중 보정 적용</small>
+                <small>
+                  {Math.abs(fit.combinedFactor - 1) < 0.005
+                    ? "체중 보정 적용"
+                    : `체중·훈련량 반영 ${fit.combinedFactor >= 1 ? "+" : ""}${((fit.combinedFactor - 1) * 100).toFixed(1)}%`}
+                </small>
               </div>
               <div className="pl-stat">
                 <small>기준 최고 기록</small>
@@ -123,6 +126,24 @@ export default async function Home() {
             </small>
           </div>
         </div>
+
+        {predictions.length > 0 && (
+          <div className="pl-hero-pb" id="prediction">
+            <div className="pl-grid">
+              {predictions.map((p) => (
+                <div key={p.label} className="pl-card pl-pred">
+                  <span className="pl-badge">{p.label}</span>
+                  <div className="pl-time pl-time-range">
+                    {formatTime(p.lowSec)} ~ {formatTime(p.highSec)}
+                  </div>
+                  <span className="pl-sub">
+                    {formatTime(p.timeSec)} 확률 가장 높음 · {formatPace(p.paceSecPerKm)}/km
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* 01 공식 기록 */}
@@ -273,34 +294,9 @@ export default async function Home() {
         )}
       </section>
 
-      {/* 06 PB 예측 */}
-      <section className="pl-section" id="prediction">
-        <span className="pl-eyebrow">07 — PB PREDICTION</span>
-        <h2>
-          거리별 <em>예상 PB</em>
-        </h2>
-        <p className="pl-section-desc">
-          VDOT 모델 기반. 최근 대회일수록 가중치를 높이고(6개월 반감기), 체중 변화를 ±5% 범위에서
-          보정했습니다.
-        </p>
-        {predictions.length === 0 ? (
-          <EmptyNote>공식 대회 기록이 1개 이상 있어야 예측이 가능합니다.</EmptyNote>
-        ) : (
-          <div className="pl-grid">
-            {predictions.map((p) => (
-              <div key={p.label} className="pl-card pl-pred">
-                <span className="pl-badge">{p.label}</span>
-                <div className="pl-time">{formatTime(p.timeSec)}</div>
-                <span className="pl-sub">{formatPace(p.paceSecPerKm)}/km 페이스</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
       {/* 07 다음 대회 */}
       <section className="pl-section" id="nextrace">
-        <span className="pl-eyebrow">08 — NEXT RACE</span>
+        <span className="pl-eyebrow">07 — NEXT RACE</span>
         <h2>
           다음 대회 <em>구간 전략</em>
         </h2>
@@ -326,7 +322,10 @@ export default async function Home() {
               </div>
               <div>
                 <small style={{ color: "var(--muted)" }}>예상 완주</small>
-                <div className="pl-total">{formatTime(course.totalSec)}</div>
+                <div className="pl-total pl-total-range">
+                  {formatTime(course.lowSec)} ~ {formatTime(course.highSec)}
+                </div>
+                <small style={{ color: "var(--muted)" }}>{formatTime(course.totalSec)} 확률 가장 높음</small>
               </div>
             </div>
             {upcoming.elevationProfile && upcoming.elevationProfile.length >= 2 && (

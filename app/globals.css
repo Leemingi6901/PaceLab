@@ -150,6 +150,17 @@ em {
   color: var(--accent);
 }
 
+.pl-hero-pb {
+  width: 100%;
+  max-width: 1040px;
+  margin: 28px auto 0;
+  z-index: 1;
+}
+
+.pl-hero-pb .pl-grid {
+  text-align: left;
+}
+
 /* 섹션 */
 .pl-section {
   max-width: 1040px;
@@ -224,6 +235,16 @@ em {
 /* 예측 카드 */
 .pl-pred .pl-time {
   color: var(--accent2);
+}
+
+.pl-time-range {
+  font-size: 1.28rem !important;
+  white-space: nowrap;
+}
+
+.pl-total-range {
+  font-size: 1.5rem !important;
+  white-space: nowrap;
 }
 
 .pl-badge {

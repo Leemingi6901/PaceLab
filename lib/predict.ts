@@ -128,18 +128,27 @@ export interface FitnessSummary {
   weightAdjustedVdot: number;
   latestWeight: number;
   baseWeight: number;
+  /** 대회 기록 간 VDOT 편차(가중 변동계수) — 기록이 들쭉날쭉할수록 커짐 */
+  vdotSpreadPct: number;
+  /** 예상 기록 범위 폭(±). 아래 UNCERTAINTY_FLOOR~CAP 사이로 캡 */
+  uncertaintyPct: number;
 }
+
+export const UNCERTAINTY_FLOOR = 0.03; // 최소 ±3% — 대회 당일 컨디션·날씨 등 기본 변동성
+export const UNCERTAINTY_CAP = 0.12; // 최대 ±12%
 
 /**
  * 현재 체력 추정:
  * - 각 대회 기록의 VDOT 계산 후, 최근 기록일수록 큰 가중치(6개월 반감기)
  * - 체중 보정: 상대 VO2max는 체중에 반비례 → vdot × (기록 당시 체중 / 현재 체중), ±5% 캡
+ * - 대회 기록 간 VDOT 편차(가중 변동계수)로 예상 기록의 불확실성 범위도 함께 계산
  */
 export function currentFitness(races: RaceRecord[], inbody: InbodyEntry[]): FitnessSummary | null {
   if (races.length === 0) return null;
   const now = Date.now();
   let wSum = 0;
   let vSum = 0;
+  let vSqSum = 0;
   let best: { r: RaceRecord; v: number } | null = null;
 
   for (const r of races) {
@@ -148,10 +157,15 @@ export function currentFitness(races: RaceRecord[], inbody: InbodyEntry[]): Fitn
     const w = Math.pow(0.5, Math.max(0, ageDays) / 180);
     wSum += w;
     vSum += v * w;
+    vSqSum += v * v * w;
     if (!best || v > best.v) best = { r, v };
   }
 
   const vdot = vSum / wSum;
+  const variance = Math.max(0, vSqSum / wSum - vdot * vdot);
+  const vdotSpreadPct = vdot > 0 ? Math.sqrt(variance) / vdot : 0;
+  const uncertaintyPct = Math.min(UNCERTAINTY_CAP, Math.max(UNCERTAINTY_FLOOR, UNCERTAINTY_FLOOR + vdotSpreadPct * 0.5));
+
   const latestWeight = inbody[inbody.length - 1]?.weightKg ?? best!.r.weightKg ?? 70;
   const baseWeight = best!.r.weightKg ?? latestWeight;
   const rawFactor = baseWeight / latestWeight;
@@ -163,14 +177,21 @@ export function currentFitness(races: RaceRecord[], inbody: InbodyEntry[]): Fitn
     weightAdjustedVdot: vdot * factor,
     latestWeight,
     baseWeight,
+    vdotSpreadPct,
+    uncertaintyPct,
   };
 }
 
 export interface Prediction {
   label: string;
   distanceKm: number;
+  /** 확률상 가장 가능성 높은(중심) 예상 기록 */
   timeSec: number;
   paceSecPerKm: number;
+  /** 컨디션 좋을 때(베스트 케이스) */
+  lowSec: number;
+  /** 컨디션 난조일 때(워스트 케이스) */
+  highSec: number;
 }
 
 const TARGETS: { label: string; km: number }[] = [
@@ -180,12 +201,19 @@ const TARGETS: { label: string; km: number }[] = [
   { label: "풀코스", km: 42.195 },
 ];
 
-export function predictAll(races: RaceRecord[], inbody: InbodyEntry[]): Prediction[] {
-  const fit = currentFitness(races, inbody);
+export function predictAll(fit: FitnessSummary | null): Prediction[] {
   if (!fit) return [];
+  const u = fit.uncertaintyPct;
   return TARGETS.map((t) => {
     const timeSec = predictTimeMin(fit.weightAdjustedVdot, t.km * 1000) * 60;
-    return { label: t.label, distanceKm: t.km, timeSec, paceSecPerKm: timeSec / t.km };
+    return {
+      label: t.label,
+      distanceKm: t.km,
+      timeSec,
+      paceSecPerKm: timeSec / t.km,
+      lowSec: timeSec * (1 - u),
+      highSec: timeSec * (1 + u),
+    };
   });
 }
 
@@ -210,11 +238,9 @@ export interface UpcomingInput {
  * - 고도 보정: 상승 10m당 +9초, 하강 10m당 -4초
  */
 export function predictCourseSplits(
-  races: RaceRecord[],
-  inbody: InbodyEntry[],
+  fit: FitnessSummary | null,
   upcoming: UpcomingInput
-): { totalSec: number; splits: SplitPrediction[] } | null {
-  const fit = currentFitness(races, inbody);
+): { totalSec: number; lowSec: number; highSec: number; splits: SplitPrediction[] } | null {
   if (!fit) return null;
   const distM = upcoming.distanceKm * 1000;
   const flatTotalSec = predictTimeMin(fit.weightAdjustedVdot, distM) * 60;
@@ -239,7 +265,8 @@ export function predictCourseSplits(
     };
   });
 
-  return { totalSec: cumulative, splits };
+  const u = fit.uncertaintyPct;
+  return { totalSec: cumulative, lowSec: cumulative * (1 - u), highSec: cumulative * (1 + u), splits };
 }
 
 /**
