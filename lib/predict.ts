@@ -364,7 +364,7 @@ export interface WorkoutRecommendation {
  * HRR 방식이 개인차(안정시 심박 차이)를 반영해 더 정확하다고 알려져 있다.
  */
 const HR_ZONES = {
-  recovery: { label: "Z1~Z2", min: 0.55, max: 0.78 },
+  recovery: { label: "Z1~Z2", min: 0.55, max: 0.7 },
   tempo: { label: "Z4", min: 0.87, max: 0.92 },
   interval: { label: "Z5", min: 0.93, max: 1.0 },
 } as const;
@@ -383,7 +383,6 @@ function hrGuidanceFor(
   const { label, min, max } = HR_ZONES[zone];
   const lo = Math.round(hrTarget(min, maxHr, restHr));
   const hi = Math.round(hrTarget(max, maxHr, restHr));
-  if (zone === "recovery") return { hrZone: label, hrGuidance: `${hi}bpm 이하 유지` };
   if (zone === "interval") return { hrZone: label, hrGuidance: `${lo}bpm 이상 유지` };
   return { hrZone: label, hrGuidance: `${lo}~${hi}bpm 유지` };
 }
