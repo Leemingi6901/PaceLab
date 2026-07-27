@@ -355,6 +355,8 @@ export interface WorkoutRecommendation {
   hrZone?: string;
   /** "145bpm 이하 유지" 처럼 바로 표시 가능한 문구 */
   hrGuidance?: string;
+  /** 구간마다 페이스가 달라지는 훈련(템포/인터벌 등)의 구간별 목표 페이스. 전 구간 페이스가 같으면 undefined */
+  segments?: { range: string; paceSecPerKm: number; note: string }[];
 }
 
 /**
@@ -469,11 +471,16 @@ export function recommendWorkouts(
 
   const tempoKm = Math.min(8, Math.max(3, Math.round(avgDistance * 0.6 * 10) / 10));
   const tempoPace = halfPace;
-  const tempoTotal = Math.round((tempoKm + 4) * 10) / 10;
+  const tempoWarmupKm = 2;
+  const tempoMainEnd = Math.round((tempoWarmupKm + tempoKm) * 10) / 10;
+  const tempoTotal = Math.round((tempoMainEnd + 2) * 10) / 10;
 
   const intervalReps = Math.min(10, Math.max(4, Math.round(avgWeeklyKm / 8) || 4));
   const intervalPace = (tenKPace + fiveKPace) / 2;
-  const intervalTotal = Math.round((2 + intervalReps * 1 + (intervalReps - 1) * 0.4 + 2) * 10) / 10;
+  const intervalWarmupKm = 2;
+  const intervalBlockKm = intervalReps * 1 + (intervalReps - 1) * 0.4;
+  const intervalMainEnd = Math.round((intervalWarmupKm + intervalBlockKm) * 10) / 10;
+  const intervalTotal = Math.round((intervalMainEnd + 2) * 10) / 10;
 
   return [
     {
@@ -495,6 +502,11 @@ export function recommendWorkouts(
       reason: recommendedLevel === "중" ? topReason : "젖산역치를 끌어올리고 싶을 때",
       recommended: recommendedLevel === "중",
       ...hrGuidanceFor("tempo", maxHr, restHr),
+      segments: [
+        { range: `0~${tempoWarmupKm}km`, paceSecPerKm: easyPace, note: "웜업" },
+        { range: `${tempoWarmupKm}~${tempoMainEnd}km`, paceSecPerKm: tempoPace, note: "템포 (하프 페이스)" },
+        { range: `${tempoMainEnd}~${tempoTotal}km`, paceSecPerKm: easyPace, note: "쿨다운" },
+      ],
     },
     {
       level: "상",
@@ -505,6 +517,15 @@ export function recommendWorkouts(
       reason: recommendedLevel === "상" ? topReason : "스피드와 VO2max를 자극하고 싶을 때",
       recommended: recommendedLevel === "상",
       ...hrGuidanceFor("interval", maxHr, restHr),
+      segments: [
+        { range: `0~${intervalWarmupKm}km`, paceSecPerKm: easyPace, note: "웜업" },
+        {
+          range: `${intervalWarmupKm}~${intervalMainEnd}km`,
+          paceSecPerKm: intervalPace,
+          note: `1km × ${intervalReps}회 인터벌 페이스 (반복 사이 400m 조깅 리커버리)`,
+        },
+        { range: `${intervalMainEnd}~${intervalTotal}km`, paceSecPerKm: easyPace, note: "쿨다운" },
+      ],
     },
   ];
 }

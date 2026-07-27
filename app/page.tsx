@@ -298,6 +298,17 @@ export default async function Home() {
                     <span className="pl-badge pl-hr-badge">{w.hrZone}</span> {w.hrGuidance}
                   </div>
                 )}
+                {w.segments && (
+                  <ul className="pl-workout-segments">
+                    {w.segments.map((s, i) => (
+                      <li key={i}>
+                        <span className="pl-seg-range">{s.range}</span>
+                        <span className="pl-seg-pace">{formatPace(s.paceSecPerKm)}/km</span>
+                        <span className="pl-seg-note">{s.note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="pl-workout-reason">{w.reason}</p>
               </div>
             ))}
