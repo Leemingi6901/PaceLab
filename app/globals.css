@@ -847,6 +847,20 @@ em {
   color: var(--accent2);
 }
 
+.pl-workout-hr {
+  color: var(--text);
+  font-size: 0.82rem;
+  margin-bottom: 10px;
+}
+
+.pl-hr-badge {
+  margin-bottom: 0;
+  margin-right: 4px;
+  background: rgba(167, 139, 250, 0.1);
+  border-color: rgba(167, 139, 250, 0.3);
+  color: var(--accent3);
+}
+
 .pl-workout-reason {
   color: var(--muted);
   font-size: 0.82rem;
@@ -1035,6 +1049,83 @@ em {
 .pl-load-line-atl {
   stroke: var(--accent2);
   opacity: 0.75;
+}
+
+/* 주기화 훈련 계획 */
+.pl-plan-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-bottom: 20px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.pl-plan-summary b {
+  color: var(--text);
+}
+
+.pl-plan-table td,
+.pl-plan-table th {
+  white-space: nowrap;
+}
+
+.pl-plan-sessions {
+  white-space: normal !important;
+  text-align: left !important;
+  min-width: 260px;
+  color: var(--muted);
+}
+
+.pl-plan-current {
+  background: rgba(45, 212, 191, 0.06);
+}
+
+.pl-plan-current td:first-child {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.pl-phase-기초 {
+  color: var(--accent);
+  border-color: rgba(45, 212, 191, 0.3);
+  background: rgba(45, 212, 191, 0.08);
+}
+
+.pl-phase-빌드업 {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.pl-phase-피크 {
+  color: var(--accent2);
+  border-color: rgba(244, 114, 182, 0.3);
+  background: rgba(244, 114, 182, 0.08);
+}
+
+.pl-phase-테이퍼 {
+  color: var(--accent3);
+  border-color: rgba(167, 139, 250, 0.3);
+  background: rgba(167, 139, 250, 0.08);
+}
+
+.pl-plan-cutback {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.015),
+    rgba(255, 255, 255, 0.015) 8px,
+    transparent 8px,
+    transparent 16px
+  );
+}
+
+.pl-cutback-badge {
+  margin-left: 4px;
+  margin-bottom: 0;
+  color: var(--muted);
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 /* 코스 고도 프로파일 */

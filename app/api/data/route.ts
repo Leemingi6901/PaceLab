@@ -96,8 +96,17 @@ export async function POST(req: Request) {
         weightKg: Number(e.weightKg),
         bodyFatPct: Number(e.bodyFatPct) || 0,
         muscleKg: Number(e.muscleKg) || 0,
+        vo2max: num(e.vo2max),
       });
       data.inbody.sort((a, b) => a.date.localeCompare(b.date));
+    } else if (type === "profile") {
+      const e = entry as { maxHr?: number; restHr?: number };
+      const maxHr = num(e.maxHr);
+      const restHr = num(e.restHr);
+      if (maxHr === undefined && restHr === undefined) {
+        throw new Error("최대심박 또는 안정시심박 중 하나는 입력해야 합니다.");
+      }
+      data.profile = { maxHr, restHr };
     } else if (type === "training") {
       const built = buildTraining(entry);
       data.trainings.push({ id: crypto.randomUUID(), ...built });

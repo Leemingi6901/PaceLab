@@ -164,19 +164,46 @@ export function bodyCompTrendFactor(inbody: InbodyEntry[]): number {
   return 1 + Math.max(-BODY_COMP_FACTOR_CAP, Math.min(BODY_COMP_FACTOR_CAP, raw));
 }
 
+const VO2MAX_FACTOR_CAP = 0.04;
+
+/**
+ * 워치·기기로 측정한 VO2max의 ~90일 추이 기반 보정 계수:
+ * 대회 기록과 별개로, 워치가 꾸준히 VO2max 상승을 감지했다면 체력이 실제로 올랐을
+ * 가능성이 높다고 보고 반영한다. VO2max 변화율을 그대로 곱하되(측정치라 신뢰도가
+ * 비교적 높음), ±4%로 캡을 씌운다. vo2max를 기록한 값이 2개 미만이면 보정하지 않는다.
+ */
+export function vo2maxTrendFactor(inbody: InbodyEntry[]): number {
+  const withVo2 = inbody.filter((m): m is InbodyEntry & { vo2max: number } => typeof m.vo2max === "number");
+  if (withVo2.length < 2) return 1;
+  const sorted = [...withVo2].sort((a, b) => a.date.localeCompare(b.date));
+  const latest = sorted[sorted.length - 1];
+  const cutoff = Date.now() - BODY_COMP_LOOKBACK_DAYS * 86400000;
+
+  let base = sorted[0];
+  for (const m of sorted) {
+    if (new Date(m.date).getTime() <= cutoff) base = m;
+    else break;
+  }
+  if (base === latest || base.vo2max <= 0) return 1;
+
+  const raw = latest.vo2max / base.vo2max - 1;
+  return 1 + Math.max(-VO2MAX_FACTOR_CAP, Math.min(VO2MAX_FACTOR_CAP, raw));
+}
+
 export interface EstimatedFitness extends FitnessSummary {
-  /** 대회 기록만으로 구한 "증명된" VDOT (체중 보정 포함, 훈련량/체성분 추이 반영 전) */
+  /** 대회 기록만으로 구한 "증명된" VDOT (체중 보정 포함, 훈련량/체성분/VO2max 추이 반영 전) */
   provenVdot: number;
   ctlFactor: number;
   bodyCompFactor: number;
-  /** ctlFactor × bodyCompFactor (한 번 더 ±12%로 캡) */
+  vo2maxFactor: number;
+  /** ctlFactor × bodyCompFactor × vo2maxFactor (한 번 더 ±12%로 캡) */
   combinedFactor: number;
 }
 
 const COMBINED_FACTOR_CAP = 0.12;
 
 /**
- * 대회 기록 기반 VDOT(증명된 체력)에 최근 훈련량(CTL 추이)과 체성분 변화 추이를
+ * 대회 기록 기반 VDOT(증명된 체력)에 최근 훈련량(CTL 추이)·체성분·VO2max 변화 추이를
  * 곱해 "현재 추정 체력"을 만든다. 대회를 안 뛰어도 꾸준히 훈련하고 있으면 예측이
  * 조금씩 따라 올라가고, 반대로 훈련 공백이 길어지면 조금씩 내려간다.
  */
@@ -190,10 +217,11 @@ export function estimateFitness(
 
   const ctlFactor = ctlTrendFactor(loadSeries);
   const bodyCompFactor = bodyCompTrendFactor(inbody);
-  const rawCombined = ctlFactor * bodyCompFactor;
+  const vo2maxFactor = vo2maxTrendFactor(inbody);
+  const rawCombined = ctlFactor * bodyCompFactor * vo2maxFactor;
   const combinedFactor = Math.max(1 - COMBINED_FACTOR_CAP, Math.min(1 + COMBINED_FACTOR_CAP, rawCombined));
 
-  // 훈련량/체성분 보정은 대회 기록만큼 확실하지 않으므로, 보정 폭의 절반만큼 불확실성 범위를 넓힌다
+  // 훈련량/체성분/VO2max 보정은 대회 기록만큼 확실하지 않으므로, 보정 폭의 절반만큼 불확실성 범위를 넓힌다
   const uncertaintyPct = Math.min(0.12, base.uncertaintyPct + Math.abs(combinedFactor - 1) * 0.5);
 
   return {
@@ -202,6 +230,7 @@ export function estimateFitness(
     weightAdjustedVdot: base.weightAdjustedVdot * combinedFactor,
     uncertaintyPct,
     ctlFactor,
+    vo2maxFactor,
     bodyCompFactor,
     combinedFactor,
   };

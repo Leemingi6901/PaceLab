@@ -23,11 +23,17 @@ export interface UpcomingRace {
   elevationProfile?: ElevationPoint[];
 }
 
+export interface AthleteProfile {
+  maxHr?: number;
+  restHr?: number;
+}
+
 export interface PaceLabData {
   races: RaceRecord[];
   inbody: InbodyEntry[];
   trainings: Training[];
   upcoming: UpcomingRace | null;
+  profile: AthleteProfile;
 }
 
 const BLOB_PREFIX = "pacelab/data-";
@@ -37,6 +43,7 @@ export const DEFAULT_DATA: PaceLabData = {
   inbody: [],
   trainings: [],
   upcoming: null,
+  profile: {},
 };
 
 function versionFromPathname(pathname: string): number {

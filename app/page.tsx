@@ -9,10 +9,12 @@ import {
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
 import { buildLoadSeries, summarizeLoad, estimateFitness } from "@/lib/trainingLoad";
+import { buildTrainingPlan } from "@/lib/trainingPlan";
 import TrainingLog from "@/components/TrainingLog";
 import MonthlyMileage from "@/components/MonthlyMileage";
 import TrainingLoad from "@/components/TrainingLoad";
 import CourseElevation from "@/components/CourseElevation";
+import TrainingPlan from "@/components/TrainingPlan";
 
 export const dynamic = "force-dynamic";
 
@@ -22,14 +24,17 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
 
 export default async function Home() {
   const data = await getData();
-  const { races, inbody, trainings, upcoming } = data;
+  const { races, inbody, trainings, upcoming, profile } = data;
 
   const loadSeries = buildLoadSeries(races, inbody, trainings);
   const loadSummary = summarizeLoad(loadSeries);
   const fit = estimateFitness(races, inbody, loadSeries);
   const predictions = predictAll(fit);
   const course = upcoming ? predictCourseSplits(fit, upcoming) : null;
-  const workouts = recommendWorkouts(trainings, predictions, loadSummary?.tsb);
+  const plan = upcoming ? buildTrainingPlan(upcoming.date, upcoming.distanceKm, trainings, predictions) : null;
+  const maxHr = profile.maxHr ?? (Math.max(0, ...races.map((r) => r.maxHr ?? 0)) || undefined);
+  const restHr = profile.restHr;
+  const workouts = recommendWorkouts(trainings, predictions, loadSummary?.tsb, maxHr, restHr);
   const tier = fit ? getRunnerTier(fit.weightAdjustedVdot) : null;
   const latestInbody = inbody[inbody.length - 1];
 
@@ -60,6 +65,7 @@ export default async function Home() {
           <a href="#mileage">Mileage</a>
           <a href="#load">Load</a>
           <a href="#nextworkout">Workout</a>
+          <a href="#plan">Plan</a>
           <a href="#nextrace">Next Race</a>
         </nav>
       </header>
@@ -287,6 +293,11 @@ export default async function Home() {
                   <span>{w.distanceKm}km</span>
                   <span>{formatPace(w.paceSecPerKm)}/km</span>
                 </div>
+                {w.hrGuidance && (
+                  <div className="pl-workout-hr">
+                    <span className="pl-badge pl-hr-badge">{w.hrZone}</span> {w.hrGuidance}
+                  </div>
+                )}
                 <p className="pl-workout-reason">{w.reason}</p>
               </div>
             ))}
@@ -294,9 +305,31 @@ export default async function Home() {
         )}
       </section>
 
-      {/* 07 다음 대회 */}
+      {/* 07 주기화 훈련 계획 */}
+      <section className="pl-section" id="plan">
+        <span className="pl-eyebrow">07 — TRAINING PLAN</span>
+        <h2>
+          대회까지 <em>주기화 훈련 계획</em>
+        </h2>
+        <p className="pl-section-desc">
+          대회일까지 남은 주 수를 기초 → 빌드업 → 피크 → 테이퍼로 나누고, 최근 4주 평균 주행거리를 기준으로
+          점진적으로(주당 최대 +8%) 늘려가는 주간 목표를 계산합니다. 마라톤 페이스는 지금 예측치를 그대로
+          쓰므로, 체력이 오르면 다음에 열었을 때 자동으로 더 빨라진 페이스로 갱신됩니다.
+        </p>
+        {!upcoming ? (
+          <EmptyNote>
+            예정 대회가 있어야 훈련 계획을 짤 수 있습니다. <a href="/admin">데이터 입력</a>에서 등록하세요.
+          </EmptyNote>
+        ) : !plan ? (
+          <EmptyNote>대회 날짜가 이미 지났습니다.</EmptyNote>
+        ) : (
+          <TrainingPlan plan={plan} />
+        )}
+      </section>
+
+      {/* 08 다음 대회 */}
       <section className="pl-section" id="nextrace">
-        <span className="pl-eyebrow">07 — NEXT RACE</span>
+        <span className="pl-eyebrow">08 — NEXT RACE</span>
         <h2>
           다음 대회 <em>구간 전략</em>
         </h2>

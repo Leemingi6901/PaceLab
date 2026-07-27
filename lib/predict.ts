@@ -22,6 +22,8 @@ export interface InbodyEntry {
   weightKg: number;
   bodyFatPct: number;
   muscleKg: number;
+  /** 워치·기기 측정 VO2max (선택) */
+  vo2max?: number;
 }
 
 export interface CourseSegment {
@@ -349,6 +351,41 @@ export interface WorkoutRecommendation {
   structure: string;
   reason: string;
   recommended: boolean;
+  /** "Z1~Z2" 등 심박존 라벨 (최대심박 기록이 없으면 undefined) */
+  hrZone?: string;
+  /** "145bpm 이하 유지" 처럼 바로 표시 가능한 문구 */
+  hrGuidance?: string;
+}
+
+/**
+ * 심박존 구간표 (Daniels E/M/T/I 강도에 흔히 대응되는 심박존 관례를 따름).
+ * 회복 조깅은 Z1~Z2, 템포런은 Z4, 인터벌은 Z5를 목표로 삼는다.
+ * 안정시 심박이 있으면 Karvonen(여유심박, HRR) 방식으로, 없으면 단순 %HRmax로 계산한다 —
+ * HRR 방식이 개인차(안정시 심박 차이)를 반영해 더 정확하다고 알려져 있다.
+ */
+const HR_ZONES = {
+  recovery: { label: "Z1~Z2", min: 0.55, max: 0.78 },
+  tempo: { label: "Z4", min: 0.87, max: 0.92 },
+  interval: { label: "Z5", min: 0.93, max: 1.0 },
+} as const;
+
+function hrTarget(pct: number, maxHr: number, restHr?: number): number {
+  if (restHr && restHr > 0 && restHr < maxHr) return restHr + pct * (maxHr - restHr);
+  return pct * maxHr;
+}
+
+function hrGuidanceFor(
+  zone: keyof typeof HR_ZONES,
+  maxHr?: number,
+  restHr?: number
+): { hrZone?: string; hrGuidance?: string } {
+  if (!maxHr || maxHr <= 0) return {};
+  const { label, min, max } = HR_ZONES[zone];
+  const lo = Math.round(hrTarget(min, maxHr, restHr));
+  const hi = Math.round(hrTarget(max, maxHr, restHr));
+  if (zone === "recovery") return { hrZone: label, hrGuidance: `${hi}bpm 이하 유지` };
+  if (zone === "interval") return { hrZone: label, hrGuidance: `${lo}bpm 이상 유지` };
+  return { hrZone: label, hrGuidance: `${lo}~${hi}bpm 유지` };
 }
 
 /**
@@ -356,11 +393,14 @@ export interface WorkoutRecommendation {
  * - 최근 4주 훈련량(주간 평균)과 이번 주 훈련량을 비교해 과부하 여부 판단
  * - 최근 "템포/인터벌/레페티션" 강도 훈련 이후 경과일로 다음 자극 시점 판단
  * - 위 신호로 하/중/상 중 하나를 "추천"으로 표시하고, 나머지도 항상 함께 제시
+ * - 최대심박(+안정시심박)이 있으면 페이스와 함께 심박 목표도 제시
  */
 export function recommendWorkouts(
   trainings: Training[],
   predictions: Prediction[],
-  tsb?: number
+  tsb?: number,
+  maxHr?: number,
+  restHr?: number
 ): WorkoutRecommendation[] | null {
   if (predictions.length === 0 || trainings.length === 0) return null;
 
@@ -445,6 +485,7 @@ export function recommendWorkouts(
       structure: `${easyDistance}km 전 구간 이지 페이스 — 대화 가능한 강도로`,
       reason: recommendedLevel === "하" ? topReason : "가볍게 몸을 풀고 다음 훈련을 준비하고 싶을 때",
       recommended: recommendedLevel === "하",
+      ...hrGuidanceFor("recovery", maxHr, restHr),
     },
     {
       level: "중",
@@ -454,6 +495,7 @@ export function recommendWorkouts(
       structure: `웜업 2km + 템포 ${tempoKm}km(하프 페이스) + 쿨다운 2km`,
       reason: recommendedLevel === "중" ? topReason : "젖산역치를 끌어올리고 싶을 때",
       recommended: recommendedLevel === "중",
+      ...hrGuidanceFor("tempo", maxHr, restHr),
     },
     {
       level: "상",
@@ -463,6 +505,7 @@ export function recommendWorkouts(
       structure: `웜업 2km + (1km × ${intervalReps}회, 인터벌 페이스 / 400m 조깅 리커버리) + 쿨다운 2km`,
       reason: recommendedLevel === "상" ? topReason : "스피드와 VO2max를 자극하고 싶을 때",
       recommended: recommendedLevel === "상",
+      ...hrGuidanceFor("interval", maxHr, restHr),
     },
   ];
 }

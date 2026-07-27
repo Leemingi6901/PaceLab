@@ -131,7 +131,24 @@ export default function AdminPage() {
             <Field label="골격근량(kg)">
               <input name="muscleKg" type="number" step="0.1" placeholder="33.5" />
             </Field>
+            <Field label="VO2max (기기 측정치, 선택)">
+              <input name="vo2max" type="number" step="0.1" placeholder="워치·검사 측정값" />
+            </Field>
             <button disabled={busy}>{busy ? "저장 중…" : "인바디 추가"}</button>
+          </form>
+
+          <form className="pl-form" onSubmit={onSubmit("profile")}>
+            <h3>❤️ 심박 프로필 (기존 등록을 대체)</h3>
+            <Field label="최대심박수(bpm)">
+              <input name="maxHr" type="number" placeholder="185" />
+            </Field>
+            <Field label="안정시심박수(bpm, 선택)">
+              <input name="restHr" type="number" placeholder="55" />
+            </Field>
+            <span className="pl-edit-hint">
+              안정시심박까지 입력하면 여유심박(Karvonen) 방식으로 훈련 심박존을 더 정확하게 계산합니다.
+            </span>
+            <button disabled={busy}>{busy ? "저장 중…" : "프로필 저장"}</button>
           </form>
 
           <form className="pl-form" onSubmit={onSubmit("training")}>
