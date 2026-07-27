@@ -119,6 +119,7 @@ export async function POST(req: Request) {
         location?: string;
         courseNote?: string;
         elevationProfile?: string;
+        monthlyTargetKm?: string;
       };
       const dist = Number(e.distanceKm);
       if (!e.name || !DATE_RE.test(e.date ?? "") || !(dist > 0)) {
@@ -145,6 +146,17 @@ export async function POST(req: Request) {
             return { fromKm: from, toKm: Math.round(to * 1000) / 1000, elevGain: 0, elevLoss: 0 };
           });
 
+      // "YYYY-MM,목표km" 한 줄에 하나씩
+      let monthlyTargetKm: Record<string, number> | undefined;
+      if (e.monthlyTargetKm) {
+        const entries = String(e.monthlyTargetKm)
+          .split(/\r?\n/)
+          .map((line) => line.split(",").map((s) => s.trim()))
+          .filter(([month, km]) => /^\d{4}-\d{2}$/.test(month ?? "") && Number(km) > 0)
+          .map(([month, km]) => [month, Number(km)] as const);
+        if (entries.length > 0) monthlyTargetKm = Object.fromEntries(entries);
+      }
+
       data.upcoming = {
         name: String(e.name),
         date: e.date!,
@@ -153,6 +165,7 @@ export async function POST(req: Request) {
         courseNote: e.courseNote ? String(e.courseNote) : "",
         segments,
         elevationProfile,
+        monthlyTargetKm,
       };
     } else {
       throw new Error("알 수 없는 type입니다.");

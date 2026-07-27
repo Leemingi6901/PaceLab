@@ -31,7 +31,9 @@ export default async function Home() {
   const fit = estimateFitness(races, inbody, loadSeries);
   const predictions = predictAll(fit);
   const course = upcoming ? predictCourseSplits(fit, upcoming) : null;
-  const plan = upcoming ? buildTrainingPlan(upcoming.date, upcoming.distanceKm, trainings, predictions) : null;
+  const plan = upcoming
+    ? buildTrainingPlan(upcoming.date, upcoming.distanceKm, trainings, upcoming.monthlyTargetKm)
+    : null;
   const maxHr = profile.maxHr ?? (Math.max(0, ...races.map((r) => r.maxHr ?? 0)) || undefined);
   const restHr = profile.restHr;
   const workouts = recommendWorkouts(trainings, predictions, loadSummary?.tsb, maxHr, restHr);
@@ -323,9 +325,9 @@ export default async function Home() {
           대회까지 <em>주기화 훈련 계획</em>
         </h2>
         <p className="pl-section-desc">
-          대회일까지 남은 주 수를 기초 → 빌드업 → 피크 → 테이퍼로 나누고, 최근 4주 평균 주행거리를 기준으로
-          점진적으로(주당 최대 +8%) 늘려가는 주간 목표를 계산합니다. 마라톤 페이스는 지금 예측치를 그대로
-          쓰므로, 체력이 오르면 다음에 열었을 때 자동으로 더 빨라진 페이스로 갱신됩니다.
+          대회일까지 남은 기간을 달(월)별로 나눠 누적 목표 마일리지를 보여줍니다. 관리 페이지에서 월별
+          목표를 직접 입력하면 그 값을 그대로 반영하고, 입력하지 않은 달은 최근 4주 평균 주행거리를 기준으로
+          점진적으로(주당 최대 +8%) 늘려가는 안전한 성장 곡선으로 추정합니다.
         </p>
         {!upcoming ? (
           <EmptyNote>

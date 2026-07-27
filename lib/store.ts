@@ -21,6 +21,8 @@ export interface UpcomingRace {
   courseNote: string;
   segments: CourseSegment[];
   elevationProfile?: ElevationPoint[];
+  /** 사용자가 직접 입력한 달(YYYY-MM)별 목표 마일리지 — 있으면 훈련 계획이 로그 기반 추정 대신 이 값을 따른다 */
+  monthlyTargetKm?: Record<string, number>;
 }
 
 export interface AthleteProfile {

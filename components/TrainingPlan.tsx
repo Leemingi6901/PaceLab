@@ -4,13 +4,13 @@ interface Props {
   plan: TrainingPlanData;
 }
 
-function fmtDate(dateStr: string): string {
-  const [, m, d] = dateStr.split("-");
-  return `${Number(m)}/${Number(d)}`;
+function fmtMonth(month: string): string {
+  const [, m] = month.split("-");
+  return `${Number(m)}월`;
 }
 
 export default function TrainingPlan({ plan }: Props) {
-  const { totalWeeks, totalPlanKm, phasePeriods } = plan;
+  const { totalWeeks, totalPlanKm, monthlyPeriods } = plan;
 
   return (
     <div>
@@ -23,13 +23,14 @@ export default function TrainingPlan({ plan }: Props) {
         </span>
       </div>
       <ul className="pl-plan-phases">
-        {phasePeriods.map((p, i) => (
-          <li key={i}>
-            <span className={`pl-badge pl-phase-${p.phase}`}>{p.phase}</span>
-            <span className="pl-phase-range">
-              {fmtDate(p.startDate)} ~ {fmtDate(p.endDate)} ({p.weeks}주)
+        {monthlyPeriods.map((p) => (
+          <li key={p.month}>
+            <span className="pl-badge pl-month-badge">{fmtMonth(p.month)}</span>
+            <span className="pl-phase-range">{p.weeks}주 포함</span>
+            <span className="pl-phase-km">
+              {p.totalKm}km
+              {p.targetKm !== undefined && <span className="pl-phase-target"> / 목표 {p.targetKm}km</span>}
             </span>
-            <span className="pl-phase-km">누적 약 {p.totalKm}km</span>
           </li>
         ))}
       </ul>

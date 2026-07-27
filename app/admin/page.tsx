@@ -206,6 +206,16 @@ export default function AdminPage() {
               />
             </Field>
             <span className="pl-edit-hint">비워두면 5km 단위 평지로 처리됩니다. 입력하면 구간별 상승/하강이 자동 계산됩니다.</span>
+            <Field label="월별 목표 마일리지 (선택)">
+              <textarea
+                name="monthlyTargetKm"
+                rows={4}
+                placeholder={"YYYY-MM,목표km 한 줄에 하나씩\n2026-08,150\n2026-09,200\n2026-10,120"}
+              />
+            </Field>
+            <span className="pl-edit-hint">
+              입력한 달은 훈련 계획이 이 목표를 그대로 따라갑니다. 비워두면 최근 훈련량 기준으로 자동 추정합니다.
+            </span>
             <button disabled={busy}>{busy ? "저장 중…" : "예정 대회 등록"}</button>
           </form>
         </div>
