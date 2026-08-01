@@ -10,11 +10,15 @@ import {
   classifyIntensity,
   type Prediction,
 } from "@/lib/predict";
+import { scoreTrainings, type LoadPoint } from "@/lib/trainingLoad";
 import type { Training } from "@/lib/store";
 
 interface Props {
   trainings: Training[];
   predictions: Prediction[];
+  loadSeries: LoadPoint[];
+  maxHr?: number;
+  restHr?: number;
 }
 
 interface EditForm {
@@ -50,7 +54,14 @@ const ZONE_CLASS: Record<string, string> = {
   "—": "",
 };
 
-export default function TrainingLog({ trainings, predictions }: Props) {
+function scoreClass(score: number): string {
+  if (score >= 85) return "score-great";
+  if (score >= 70) return "score-good";
+  if (score >= 50) return "score-fair";
+  return "score-poor";
+}
+
+export default function TrainingLog({ trainings, predictions, loadSeries, maxHr, restHr }: Props) {
   const router = useRouter();
   const [pin, setPin] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -59,6 +70,7 @@ export default function TrainingLog({ trainings, predictions }: Props) {
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const recent = [...trainings].reverse().slice(0, 8);
+  const scores = scoreTrainings(trainings, predictions, loadSeries, maxHr, restHr);
 
   function requirePin(): boolean {
     if (!pin.trim()) {
@@ -177,6 +189,7 @@ export default function TrainingLog({ trainings, predictions }: Props) {
               <th>페이스(보정)</th>
               <th>고도</th>
               <th>강도</th>
+              <th>점수</th>
               <th>심박</th>
               <th>메모</th>
               <th>관리</th>
@@ -250,6 +263,9 @@ export default function TrainingLog({ trainings, predictions }: Props) {
                       <span className="pl-edit-hint">자동계산</span>
                     </td>
                     <td>
+                      <span className="pl-edit-hint">자동계산</span>
+                    </td>
+                    <td>
                       <input
                         type="number"
                         value={form.avgHr}
@@ -295,6 +311,17 @@ export default function TrainingLog({ trainings, predictions }: Props) {
                   </td>
                   <td>
                     <span className={`pl-zone ${ZONE_CLASS[zone]}`}>{zone}</span>
+                  </td>
+                  <td>
+                    {(() => {
+                      const s = scores.get(t.id);
+                      if (!s) return "—";
+                      return (
+                        <span className={`pl-score-badge ${scoreClass(s.score)}`} title={s.breakdown.join("\n")}>
+                          {s.score}점
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td>{t.avgHr ? `${t.avgHr}bpm` : "—"}</td>
                   <td>{t.note ?? "—"}</td>

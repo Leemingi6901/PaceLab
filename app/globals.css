@@ -1180,3 +1180,39 @@ em {
   font-size: 0.72rem;
   margin-top: 4px;
 }
+
+/* 훈련 점수 배지 */
+.pl-score-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  border: 1px solid var(--border);
+  cursor: help;
+  white-space: nowrap;
+}
+
+.pl-score-badge.score-great {
+  color: var(--accent);
+  border-color: rgba(45, 212, 191, 0.4);
+  background: rgba(45, 212, 191, 0.1);
+}
+
+.pl-score-badge.score-good {
+  color: #a3e635;
+  border-color: rgba(163, 230, 53, 0.4);
+  background: rgba(163, 230, 53, 0.1);
+}
+
+.pl-score-badge.score-fair {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.pl-score-badge.score-poor {
+  color: var(--accent2);
+  border-color: rgba(244, 114, 182, 0.4);
+  background: rgba(244, 114, 182, 0.1);
+}
