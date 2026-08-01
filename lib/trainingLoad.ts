@@ -9,11 +9,13 @@ import {
   classifyIntensity,
   currentFitness,
   effectiveTimeSec,
+  formatPace,
   gapCenteringFraction,
   gradeAdjustedPace,
   hrRangeForZone,
   parseTime,
   predictAll,
+  zonePaceBand,
   type FitnessSummary,
   type InbodyEntry,
   type IntensityZone,
@@ -253,8 +255,10 @@ export interface TrainingScore {
   tsbAtSession?: number;
   /** 심박 데이터로 실행 정확도를 평가했는지 (없으면 페이스만으로 평가) */
   hrEvaluated: boolean;
-  /** 사람이 읽는 한두 줄 설명 */
+  /** "왜 이 점수인지" — 사람이 읽는 설명 */
   breakdown: string[];
+  /** "다음엔 어떻게 하면 더 높은 점수를 받을지" — 만점이면 칭찬 문구 하나만 */
+  suggestions: string[];
 }
 
 interface LoadFitBand {
@@ -322,13 +326,14 @@ export function scoreTraining(
   const { score: loadScore, note: loadNote } = loadFitScore(zone, tsbAtSession);
 
   const centerFrac = gapCenteringFraction(gap, zone, predictions);
+  const band = zonePaceBand(zone, predictions);
   const hrRange = training.avgHr ? hrRangeForZone(zone, maxHr, restHr) : null;
 
   let executionScore: number;
+  let hrFrac: number | null = null;
   const breakdown: string[] = [loadNote];
   if (hrRange && training.avgHr) {
     const { lo, hi } = hrRange;
-    let hrFrac: number;
     if (training.avgHr >= lo && training.avgHr <= hi) hrFrac = 1;
     else {
       const span = hi - lo || 1;
@@ -350,6 +355,43 @@ export function scoreTraining(
     );
   }
 
+  // 다음엔 어떻게 하면 더 높은 점수를 받을지 — 감점이 있었던 항목만 구체적으로 짚어준다
+  const suggestions: string[] = [];
+  if (tsbAtSession !== undefined && zone !== "이지" && loadScore < 58) {
+    const b = LOAD_FIT_BANDS[zone]!;
+    if (tsbAtSession < b.idealMin) {
+      suggestions.push(
+        `이날은 TSB ${tsbAtSession.toFixed(0)}로 피로가 쌓인 상태였습니다. 다음엔 이 강도(${zone}) 훈련을 TSB ${b.idealMin} 이상일 때로 옮기고, 지친 날엔 이지 조깅으로 회복부터 채워보세요.`
+      );
+    } else {
+      suggestions.push(
+        `TSB ${tsbAtSession.toFixed(0)}로 컨디션이 아주 좋았던 날입니다. 이 정도로 신선할 땐 한 단계 더 강한 훈련(예: 인터벌)을 시도해도 좋습니다.`
+      );
+    }
+  }
+  if (tsbAtSession !== undefined && zone === "이지" && tsbAtSession > 30) {
+    suggestions.push(
+      `TSB ${tsbAtSession.toFixed(0)}로 완전히 회복된 상태였는데 이지 조깅만 하셨습니다. 이런 날엔 템포런이나 인터벌로 자극을 주면 더 높은 점수를 받을 수 있어요.`
+    );
+  }
+  if (band && centerFrac < 0.75) {
+    const centerPace = (band.lo + band.hi) / 2;
+    suggestions.push(
+      `페이스가 ${zone} 구간 경계 쪽에 걸쳐 있었습니다. 다음엔 ${formatPace(centerPace)}/km 근처를 목표로 더 또렷하게 뛰어보면 실행 점수가 올라갑니다.`
+    );
+  }
+  if (hrRange && training.avgHr && hrFrac !== null && hrFrac < 0.75) {
+    const dir = training.avgHr < hrRange.lo ? "조금 더 끌어올릴" : "조금 늦출";
+    suggestions.push(
+      `심박이 목표 구간(${Math.round(hrRange.lo)}~${Math.round(hrRange.hi)}bpm)을 ${
+        training.avgHr < hrRange.lo ? "밑돌았습니다" : "웃돌았습니다"
+      }. 페이스를 ${dir} 수 있는지 다음 훈련에서 확인해보세요.`
+    );
+  }
+  if (suggestions.length === 0) {
+    suggestions.push("컨디션 타이밍과 실행 모두 훌륭했습니다 — 지금 방식 그대로 유지하세요!");
+  }
+
   const score = Math.round(Math.max(0, Math.min(100, loadScore + executionScore)));
   return {
     score,
@@ -359,6 +401,7 @@ export function scoreTraining(
     tsbAtSession,
     hrEvaluated: Boolean(hrRange && training.avgHr),
     breakdown,
+    suggestions,
   };
 }
 

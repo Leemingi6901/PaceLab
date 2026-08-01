@@ -329,31 +329,28 @@ export function classifyIntensity(gapSecPerKm: number, predictions: Prediction[]
 }
 
 /**
+ * 강도 존의 페이스 밴드(sec/km)를 반환한다. lo=빠른 쪽 경계, hi=느린 쪽 경계.
+ * 이지/레페티션처럼 한쪽으로 열린 구간은 인접 구간과 같은 폭을 그 방향으로 가정해 밴드를 만든다.
+ * 예측이 없으면 null.
+ */
+export function zonePaceBand(zone: IntensityZone, predictions: Prediction[]): { lo: number; hi: number } | null {
+  const bp = zoneBreakpoints(predictions);
+  if (!bp || zone === "—") return null;
+  if (zone === "이지") return { lo: bp.easy, hi: bp.easy + (bp.easy - bp.marathon) };
+  if (zone === "마라톤") return { lo: bp.marathon, hi: bp.easy };
+  if (zone === "템포") return { lo: bp.tempo, hi: bp.marathon };
+  if (zone === "인터벌") return { lo: bp.interval, hi: bp.tempo };
+  return { hi: bp.interval, lo: bp.interval - (bp.tempo - bp.interval) };
+}
+
+/**
  * GAP이 분류된 존의 "한가운데"에 얼마나 가까운지 0(경계 또는 그 너머)~1(정중앙)로 반환한다.
  * 존 경계에 걸친 애매한 페이스보다 한가운데를 또렷하게 찍은 페이스를 더 "깔끔한 실행"으로 본다.
- * 이지/레페티션처럼 한쪽으로 열린 구간은 인접 구간과 같은 폭을 그 방향으로 가정해 중심을 잡는다.
  */
 export function gapCenteringFraction(gapSecPerKm: number, zone: IntensityZone, predictions: Prediction[]): number {
-  const bp = zoneBreakpoints(predictions);
-  if (!bp || zone === "—") return 0.5;
-  let lo: number;
-  let hi: number;
-  if (zone === "이지") {
-    lo = bp.easy;
-    hi = bp.easy + (bp.easy - bp.marathon);
-  } else if (zone === "마라톤") {
-    lo = bp.marathon;
-    hi = bp.easy;
-  } else if (zone === "템포") {
-    lo = bp.tempo;
-    hi = bp.marathon;
-  } else if (zone === "인터벌") {
-    lo = bp.interval;
-    hi = bp.tempo;
-  } else {
-    hi = bp.interval;
-    lo = bp.interval - (bp.tempo - bp.interval);
-  }
+  const band = zonePaceBand(zone, predictions);
+  if (!band) return 0.5;
+  const { lo, hi } = band;
   const center = (lo + hi) / 2;
   const halfWidth = (hi - lo) / 2 || 1;
   return Math.max(0, Math.min(1, 1 - Math.abs(gapSecPerKm - center) / halfWidth));

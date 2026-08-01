@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   parseTime,
@@ -68,6 +68,7 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
   const [form, setForm] = useState<EditForm | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const recent = [...trainings].reverse().slice(0, 8);
   const scores = scoreTrainings(trainings, predictions, loadSeries, maxHr, restHr);
@@ -291,51 +292,88 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
                 );
               }
 
+              const score = scores.get(t.id);
+              const isExpanded = expandedId === t.id;
+
               return (
-                <tr key={t.id}>
-                  <td>{t.date}</td>
-                  <td>{t.distanceKm}km</td>
-                  <td>
-                    {t.time}
-                    {t.treadmill && <span className="pl-treadmill-tag">트레드밀</span>}
-                  </td>
-                  <td>{formatPace(correctedPace)}/km</td>
-                  <td>
-                    {gain === 0 && loss === 0 ? (
-                      "—"
-                    ) : (
-                      <>
-                        <span className="up">▲{gain}m</span> <span className="down">▼{loss}m</span>
-                      </>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`pl-zone ${ZONE_CLASS[zone]}`}>{zone}</span>
-                  </td>
-                  <td>
-                    {(() => {
-                      const s = scores.get(t.id);
-                      if (!s) return "—";
-                      return (
-                        <span className={`pl-score-badge ${scoreClass(s.score)}`} title={s.breakdown.join("\n")}>
-                          {s.score}점
-                        </span>
-                      );
-                    })()}
-                  </td>
-                  <td>{t.avgHr ? `${t.avgHr}bpm` : "—"}</td>
-                  <td>{t.note ?? "—"}</td>
-                  <td>
-                    <div className="pl-row-actions">
-                      <button className="pl-icon-btn" disabled={busyId === t.id} onClick={() => startEdit(t)}>
-                        수정
-                      </button>
-                      <button className="pl-icon-btn danger" disabled={busyId === t.id} onClick={() => remove(t.id)}>
-                        삭제
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                <Fragment key={t.id}>
+                  <tr>
+                    <td>{t.date}</td>
+                    <td>{t.distanceKm}km</td>
+                    <td>
+                      {t.time}
+                      {t.treadmill && <span className="pl-treadmill-tag">트레드밀</span>}
+                    </td>
+                    <td>{formatPace(correctedPace)}/km</td>
+                    <td>
+                      {gain === 0 && loss === 0 ? (
+                        "—"
+                      ) : (
+                        <>
+                          <span className="up">▲{gain}m</span> <span className="down">▼{loss}m</span>
+                        </>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`pl-zone ${ZONE_CLASS[zone]}`}>{zone}</span>
+                    </td>
+                    <td>
+                      {!score ? (
+                        "—"
+                      ) : (
+                        <button
+                          type="button"
+                          className={`pl-score-badge ${scoreClass(score.score)}`}
+                          onClick={() => setExpandedId(isExpanded ? null : t.id)}
+                        >
+                          {score.score}점 {isExpanded ? "▲" : "▾"}
+                        </button>
+                      )}
+                    </td>
+                    <td>{t.avgHr ? `${t.avgHr}bpm` : "—"}</td>
+                    <td>{t.note ?? "—"}</td>
+                    <td>
+                      <div className="pl-row-actions">
+                        <button className="pl-icon-btn" disabled={busyId === t.id} onClick={() => startEdit(t)}>
+                          수정
+                        </button>
+                        <button className="pl-icon-btn danger" disabled={busyId === t.id} onClick={() => remove(t.id)}>
+                          삭제
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {isExpanded && score && (
+                    <tr className="pl-detail-row">
+                      <td colSpan={10}>
+                        <div className="pl-score-detail">
+                          <div className="pl-score-detail-head">
+                            <span className={`pl-score-badge lg ${scoreClass(score.score)}`}>{score.score}점</span>
+                            <span className="pl-score-sub">부하 타이밍 {score.loadFitScore}/60 · 실행 정확도 {score.executionScore}/40</span>
+                          </div>
+                          <div className="pl-score-detail-cols">
+                            <div>
+                              <h4>왜 이 점수인가요</h4>
+                              <ul>
+                                {score.breakdown.map((b, i) => (
+                                  <li key={i}>{b}</li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div>
+                              <h4>더 높은 점수를 받으려면</h4>
+                              <ul className="pl-suggest-list">
+                                {score.suggestions.map((s, i) => (
+                                  <li key={i}>{s}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
           </tbody>
