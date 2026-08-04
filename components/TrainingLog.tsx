@@ -360,7 +360,9 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
                     </td>
                     <td>
                       {!score ? (
-                        "—"
+                        <span title={t.intensityOverride ? undefined : "강도를 직접 지정해야 채점됩니다 (자동 추정은 참고용)"}>
+                          —
+                        </span>
                       ) : (
                         <button
                           type="button"

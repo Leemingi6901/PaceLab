@@ -246,9 +246,10 @@ export default async function Home() {
           러닝 <em>훈련 기록</em>
         </h2>
         <p className="pl-section-desc">
-          서울 인근 훈련 기록. 최근 8회를 보여줍니다. 고도 보정 페이스(GAP)로 업/다운힐을 반영해 훈련 강도를
-          자동 분류하고, 컨디션과 무관하게 그 강도를 페이스·심박으로 얼마나 정확히 실행했는지만으로 100점
-          만점 훈련 점수를 매깁니다. 점수를 누르면 평가 근거가 보입니다.
+          서울 인근 훈련 기록. 최근 8회를 보여줍니다. 강도는 직접 태그하지 않으면 고도 보정 페이스(GAP) 기준
+          참고용으로만 자동 추정해 표시합니다. 훈련 점수는 직접 강도를 지정한 기록에 한해, 컨디션과 무관하게
+          그 강도를 페이스·심박으로 얼마나 정확히 실행했는지만으로 100점 만점으로 매깁니다. 점수를 누르면
+          평가 근거가 보입니다.
         </p>
         <TrainingLog trainings={trainings} predictions={predictions} maxHr={maxHr} restHr={restHr} />
       </section>

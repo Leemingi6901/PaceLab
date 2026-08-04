@@ -273,6 +273,10 @@ export function scoreTraining(
   restHr?: number
 ): TrainingScore | null {
   if (predictions.length === 0) return null;
+  // 강도를 직접 태그하지 않은 기록은 채점하지 않는다 — 페이스만 보고 마라톤/이지 등을
+  // 추정하는 자동분류는 표시용 참고 정보일 뿐, 어떤 강도로 뛰려 했는지에 대한 확실한
+  // 근거가 아니라서 "목표를 얼마나 정확히 실행했는지" 채점의 기준으로 쓰기엔 부적절하다.
+  if (!training.intensityOverride) return null;
 
   const timeSec = effectiveTimeSec(parseTime(training.time), training.treadmill);
   const gap = gradeAdjustedPace(timeSec, training.distanceKm, training.elevGainM ?? 0, training.elevLossM ?? 0);
