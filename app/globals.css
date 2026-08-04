@@ -146,6 +146,14 @@ em {
   font-size: 0.78rem;
 }
 
+.pl-cap-hint {
+  display: block;
+  margin-top: 2px;
+  color: var(--accent2) !important;
+  font-size: 0.72rem !important;
+  cursor: help;
+}
+
 .pl-stat .hl {
   color: var(--accent);
 }

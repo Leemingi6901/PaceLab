@@ -8,7 +8,7 @@ import {
   formatPace,
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
-import { buildLoadSeries, summarizeLoad, estimateFitness } from "@/lib/trainingLoad";
+import { buildLoadSeries, summarizeLoad, estimateFitness, CTL_FACTOR_CAP, COMBINED_FACTOR_CAP } from "@/lib/trainingLoad";
 import { buildTrainingPlan } from "@/lib/trainingPlan";
 import TrainingLog from "@/components/TrainingLog";
 import MonthlyMileage from "@/components/MonthlyMileage";
@@ -39,6 +39,9 @@ export default async function Home() {
   const workouts = recommendWorkouts(trainings, predictions, loadSummary?.tsb, maxHr, restHr);
   const tier = fit ? getRunnerTier(fit.weightAdjustedVdot) : null;
   const latestInbody = inbody[inbody.length - 1];
+  const trainingBoostAtCap =
+    !!fit &&
+    (Math.abs(fit.ctlFactor - 1) >= CTL_FACTOR_CAP - 0.001 || Math.abs(fit.combinedFactor - 1) >= COMBINED_FACTOR_CAP - 0.001);
 
   const maxW = Math.max(...inbody.map((m) => m.weightKg), 1);
   const maxF = Math.max(...inbody.map((m) => m.bodyFatPct), 1);
@@ -99,6 +102,11 @@ export default async function Home() {
                     ? "체중 보정 적용"
                     : `체중·훈련량 반영 ${fit.combinedFactor >= 1 ? "+" : ""}${((fit.combinedFactor - 1) * 100).toFixed(1)}%`}
                 </small>
+                {trainingBoostAtCap && (
+                  <small className="pl-cap-hint" title="대회 기록 없이 훈련량만으로 예측을 흔들 수 있는 한도예요. 더 올리려면 새 대회 기록, 반복된 인바디·VO2max 측정이 필요해요.">
+                    반영 상한 도달 — 훈련만으로는 더 안 올라감
+                  </small>
+                )}
               </div>
               <div className="pl-stat">
                 <small>기준 최고 기록</small>

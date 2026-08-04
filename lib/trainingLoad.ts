@@ -120,7 +120,7 @@ export function summarizeLoad(series: LoadPoint[]): LoadSummary | null {
 
 const CTL_LOOKBACK_DAYS = 84; // 12주 — 한 훈련 사이클
 const CTL_SENSITIVITY = 0.4;
-const CTL_FACTOR_CAP = 0.08;
+export const CTL_FACTOR_CAP = 0.08;
 
 /**
  * 최근 12주 CTL 추이 기반 보정 계수:
@@ -207,7 +207,7 @@ export interface EstimatedFitness extends FitnessSummary {
   combinedFactor: number;
 }
 
-const COMBINED_FACTOR_CAP = 0.12;
+export const COMBINED_FACTOR_CAP = 0.12;
 
 /**
  * 대회 기록 기반 VDOT(증명된 체력)에 최근 훈련량(CTL 추이)·체성분·VO2max 변화 추이를
