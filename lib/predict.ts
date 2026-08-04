@@ -356,6 +356,13 @@ export function zonePaceBand(zone: IntensityZone, predictions: Prediction[]): { 
   return { hi: bp.interval, lo: bp.interval - (bp.tempo - bp.interval) };
 }
 
+/** "5'58"~6'12"/km" 처럼 강도 존의 목표 페이스 범위를 사람이 읽는 문자열로 반환한다 */
+export function zoneBandLabel(zone: IntensityZone, predictions: Prediction[]): string | null {
+  const band = zonePaceBand(zone, predictions);
+  if (!band) return null;
+  return `${formatPace(band.lo)}~${formatPace(band.hi)}/km`;
+}
+
 /**
  * GAP이 분류된 존의 "한가운데"에 얼마나 가까운지 0(경계 또는 그 너머)~1(정중앙)로 반환한다.
  * 존 경계에 걸친 애매한 페이스보다 한가운데를 또렷하게 찍은 페이스를 더 "깔끔한 실행"으로 본다.

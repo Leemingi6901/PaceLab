@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { predictAll, zoneBandLabel, type IntensityZone, type Prediction } from "@/lib/predict";
+import { buildLoadSeries, estimateFitness } from "@/lib/trainingLoad";
 
 type Msg = { kind: "ok" | "err"; text: string } | null;
+
+const INTENSITY_OPTIONS: IntensityZone[] = ["이지", "마라톤", "템포", "인터벌", "레페티션"];
 
 function Field({
   label,
@@ -23,6 +27,18 @@ export default function AdminPage() {
   const [pin, setPin] = useState("");
   const [msg, setMsg] = useState<Msg>(null);
   const [busy, setBusy] = useState(false);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+
+  useEffect(() => {
+    fetch("/api/data")
+      .then((r) => r.json())
+      .then((d) => {
+        const loadSeries = buildLoadSeries(d.races, d.inbody, d.trainings);
+        const fit = estimateFitness(d.races, d.inbody, loadSeries, d.vo2max);
+        setPredictions(predictAll(fit));
+      })
+      .catch(() => {});
+  }, []);
 
   async function submit(type: string, form: HTMLFormElement) {
     setBusy(true);
@@ -187,12 +203,24 @@ export default function AdminPage() {
             <Field label="강도 (선택, 비우면 페이스 기준 자동 분류)">
               <select name="intensityOverride" defaultValue="">
                 <option value="">자동</option>
-                <option value="이지">이지</option>
-                <option value="마라톤">마라톤</option>
-                <option value="템포">템포</option>
-                <option value="인터벌">인터벌</option>
-                <option value="레페티션">레페티션</option>
+                {INTENSITY_OPTIONS.map((z) => (
+                  <option key={z} value={z}>
+                    {z}
+                  </option>
+                ))}
               </select>
+              {predictions.length > 0 && (
+                <div className="pl-zone-bands">
+                  {INTENSITY_OPTIONS.map((z) => {
+                    const label = zoneBandLabel(z, predictions);
+                    return label ? (
+                      <span key={z}>
+                        {z} {label}
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              )}
             </Field>
             <Field label="메모">
               <input name="note" placeholder="한강 LSD, 잠실 인터벌…" />

@@ -8,6 +8,7 @@ import {
   effectiveTimeSec,
   gradeAdjustedPace,
   resolveIntensity,
+  zoneBandLabel,
   type IntensityZone,
   type Prediction,
 } from "@/lib/predict";
@@ -74,6 +75,13 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  function refresh() {
+    setRefreshing(true);
+    router.refresh();
+    setTimeout(() => setRefreshing(false), 600);
+  }
 
   const recent = [...trainings].reverse().slice(0, 8);
   const scores = scoreTrainings(trainings, predictions, maxHr, restHr);
@@ -184,6 +192,9 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
           placeholder="수정/삭제 인증번호"
           autoComplete="off"
         />
+        <button type="button" className="pl-icon-btn" onClick={refresh} disabled={refreshing}>
+          {refreshing ? "새로고침 중…" : "↻ 새로고침"}
+        </button>
         {msg && <span className={`pl-msg-inline ${msg.kind}`}>{msg.text}</span>}
       </div>
       <div className="pl-table-wrap">
@@ -279,6 +290,16 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
                           </option>
                         ))}
                       </select>
+                      <div className="pl-zone-bands">
+                        {INTENSITY_OPTIONS.map((z) => {
+                          const label = zoneBandLabel(z, predictions);
+                          return label ? (
+                            <span key={z}>
+                              {z} {label}
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
                     </td>
                     <td>
                       <span className="pl-edit-hint">자동계산</span>

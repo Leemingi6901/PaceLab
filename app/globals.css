@@ -686,6 +686,17 @@ em {
   font-size: 0.76rem;
 }
 
+.pl-zone-bands {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
 /* 월간 마일리지 캘린더 */
 .pl-calendar {
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
