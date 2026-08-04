@@ -1,5 +1,5 @@
 import { put, list, del } from "@vercel/blob";
-import type { RaceRecord, InbodyEntry, CourseSegment, ElevationPoint } from "./predict";
+import type { RaceRecord, InbodyEntry, Vo2maxEntry, CourseSegment, ElevationPoint } from "./predict";
 
 export interface Training {
   id: string;
@@ -33,6 +33,7 @@ export interface AthleteProfile {
 export interface PaceLabData {
   races: RaceRecord[];
   inbody: InbodyEntry[];
+  vo2max: Vo2maxEntry[];
   trainings: Training[];
   upcoming: UpcomingRace | null;
   profile: AthleteProfile;
@@ -43,6 +44,7 @@ const BLOB_PREFIX = "pacelab/data-";
 export const DEFAULT_DATA: PaceLabData = {
   races: [],
   inbody: [],
+  vo2max: [],
   trainings: [],
   upcoming: null,
   profile: {},

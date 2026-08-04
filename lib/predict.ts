@@ -22,8 +22,12 @@ export interface InbodyEntry {
   weightKg: number;
   bodyFatPct: number;
   muscleKg: number;
-  /** 워치·기기 측정 VO2max (선택) */
-  vo2max?: number;
+}
+
+/** 워치·기기로 측정한 VO2max 기록 — 인바디와 측정 주기가 달라 별도로 관리한다 */
+export interface Vo2maxEntry {
+  date: string;
+  vo2max: number;
 }
 
 export interface CourseSegment {

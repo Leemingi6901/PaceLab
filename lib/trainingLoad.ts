@@ -14,6 +14,7 @@ import {
   type FitnessSummary,
   type InbodyEntry,
   type RaceRecord,
+  type Vo2maxEntry,
 } from "./predict";
 import type { Training } from "./store";
 
@@ -170,12 +171,11 @@ const VO2MAX_FACTOR_CAP = 0.04;
  * 워치·기기로 측정한 VO2max의 ~90일 추이 기반 보정 계수:
  * 대회 기록과 별개로, 워치가 꾸준히 VO2max 상승을 감지했다면 체력이 실제로 올랐을
  * 가능성이 높다고 보고 반영한다. VO2max 변화율을 그대로 곱하되(측정치라 신뢰도가
- * 비교적 높음), ±4%로 캡을 씌운다. vo2max를 기록한 값이 2개 미만이면 보정하지 않는다.
+ * 비교적 높음), ±4%로 캡을 씌운다. 기록된 값이 2개 미만이면 보정하지 않는다.
  */
-export function vo2maxTrendFactor(inbody: InbodyEntry[]): number {
-  const withVo2 = inbody.filter((m): m is InbodyEntry & { vo2max: number } => typeof m.vo2max === "number");
-  if (withVo2.length < 2) return 1;
-  const sorted = [...withVo2].sort((a, b) => a.date.localeCompare(b.date));
+export function vo2maxTrendFactor(entries: Vo2maxEntry[]): number {
+  if (entries.length < 2) return 1;
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
   const latest = sorted[sorted.length - 1];
   const cutoff = Date.now() - BODY_COMP_LOOKBACK_DAYS * 86400000;
 
@@ -210,14 +210,15 @@ const COMBINED_FACTOR_CAP = 0.12;
 export function estimateFitness(
   races: RaceRecord[],
   inbody: InbodyEntry[],
-  loadSeries: LoadPoint[]
+  loadSeries: LoadPoint[],
+  vo2max: Vo2maxEntry[] = []
 ): EstimatedFitness | null {
   const base = currentFitness(races, inbody);
   if (!base) return null;
 
   const ctlFactor = ctlTrendFactor(loadSeries);
   const bodyCompFactor = bodyCompTrendFactor(inbody);
-  const vo2maxFactor = vo2maxTrendFactor(inbody);
+  const vo2maxFactor = vo2maxTrendFactor(vo2max);
   const rawCombined = ctlFactor * bodyCompFactor * vo2maxFactor;
   const combinedFactor = Math.max(1 - COMBINED_FACTOR_CAP, Math.min(1 + COMBINED_FACTOR_CAP, rawCombined));
 

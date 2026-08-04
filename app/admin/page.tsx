@@ -131,10 +131,19 @@ export default function AdminPage() {
             <Field label="골격근량(kg)">
               <input name="muscleKg" type="number" step="0.1" placeholder="33.5" />
             </Field>
-            <Field label="VO2max (기기 측정치, 선택)">
-              <input name="vo2max" type="number" step="0.1" placeholder="워치·검사 측정값" />
-            </Field>
             <button disabled={busy}>{busy ? "저장 중…" : "인바디 추가"}</button>
+          </form>
+
+          <form className="pl-form" onSubmit={onSubmit("vo2max")}>
+            <h3>🫁 VO2max</h3>
+            <Field label="날짜 *">
+              <input name="date" required type="date" />
+            </Field>
+            <Field label="VO2max *">
+              <input name="vo2max" required type="number" step="0.1" placeholder="워치·검사 측정값" />
+            </Field>
+            <span className="pl-edit-hint">인바디와 측정 주기가 다를 수 있어 따로 기록합니다. 워치 등에서 측정될 때마다 추가하세요.</span>
+            <button disabled={busy}>{busy ? "저장 중…" : "VO2max 추가"}</button>
           </form>
 
           <form className="pl-form" onSubmit={onSubmit("profile")}>

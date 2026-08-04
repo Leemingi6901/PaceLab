@@ -24,11 +24,11 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
 
 export default async function Home() {
   const data = await getData();
-  const { races, inbody, trainings, upcoming, profile } = data;
+  const { races, inbody, vo2max, trainings, upcoming, profile } = data;
 
   const loadSeries = buildLoadSeries(races, inbody, trainings);
   const loadSummary = summarizeLoad(loadSeries);
-  const fit = estimateFitness(races, inbody, loadSeries);
+  const fit = estimateFitness(races, inbody, loadSeries, vo2max);
   const predictions = predictAll(fit);
   const course = upcoming ? predictCourseSplits(fit, upcoming) : null;
   const plan = upcoming

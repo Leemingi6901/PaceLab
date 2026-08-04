@@ -96,9 +96,16 @@ export async function POST(req: Request) {
         weightKg: Number(e.weightKg),
         bodyFatPct: Number(e.bodyFatPct) || 0,
         muscleKg: Number(e.muscleKg) || 0,
-        vo2max: num(e.vo2max),
       });
       data.inbody.sort((a, b) => a.date.localeCompare(b.date));
+    } else if (type === "vo2max") {
+      const e = entry as { date?: string; vo2max?: number };
+      const value = num(e.vo2max);
+      if (!DATE_RE.test(e.date ?? "") || value === undefined || value <= 0) {
+        throw new Error("날짜(YYYY-MM-DD)와 VO2max를 확인하세요.");
+      }
+      data.vo2max.push({ date: e.date!, vo2max: value });
+      data.vo2max.sort((a, b) => a.date.localeCompare(b.date));
     } else if (type === "profile") {
       const e = entry as { maxHr?: number; restHr?: number };
       const maxHr = num(e.maxHr);
