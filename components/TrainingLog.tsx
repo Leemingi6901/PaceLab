@@ -10,13 +10,12 @@ import {
   classifyIntensity,
   type Prediction,
 } from "@/lib/predict";
-import { scoreTrainings, type LoadPoint } from "@/lib/trainingLoad";
+import { scoreTrainings } from "@/lib/trainingLoad";
 import type { Training } from "@/lib/store";
 
 interface Props {
   trainings: Training[];
   predictions: Prediction[];
-  loadSeries: LoadPoint[];
   maxHr?: number;
   restHr?: number;
 }
@@ -61,7 +60,7 @@ function scoreClass(score: number): string {
   return "score-poor";
 }
 
-export default function TrainingLog({ trainings, predictions, loadSeries, maxHr, restHr }: Props) {
+export default function TrainingLog({ trainings, predictions, maxHr, restHr }: Props) {
   const router = useRouter();
   const [pin, setPin] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -71,7 +70,7 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const recent = [...trainings].reverse().slice(0, 8);
-  const scores = scoreTrainings(trainings, predictions, loadSeries, maxHr, restHr);
+  const scores = scoreTrainings(trainings, predictions, maxHr, restHr);
 
   function requirePin(): boolean {
     if (!pin.trim()) {
@@ -349,7 +348,11 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
                         <div className="pl-score-detail">
                           <div className="pl-score-detail-head">
                             <span className={`pl-score-badge lg ${scoreClass(score.score)}`}>{score.score}점</span>
-                            <span className="pl-score-sub">부하 타이밍 {score.loadFitScore}/60 · 실행 정확도 {score.executionScore}/40</span>
+                            <span className="pl-score-sub">
+                              {score.hrScore !== null
+                                ? `페이스 정확도 ${score.paceScore}/70 · 심박 정확도 ${score.hrScore}/30`
+                                : `페이스 정확도 ${score.paceScore}/100`}
+                            </span>
                           </div>
                           <div className="pl-score-detail-cols">
                             <div>

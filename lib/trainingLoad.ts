@@ -245,16 +245,14 @@ export function estimateFitness(
 }
 
 export interface TrainingScore {
-  /** 0~100점 */
+  /** 0~100점 — 컨디션(TSB)과 무관하게, 그 강도를 얼마나 정확히 실행했는지만으로 평가 */
   score: number;
   zone: IntensityZone;
-  /** 부하 타이밍 적합도 (0~60) — 그날 컨디션(TSB)에 이 강도가 맞았는지 */
-  loadFitScore: number;
-  /** 실행 정확도 (0~40) — 페이스가 존 한가운데를 또렷하게 찍었는지 + 심박이 목표 구간에 맞았는지 */
-  executionScore: number;
-  /** 세션 당일(훈련 반영 전) TSB. 이력이 부족하면 undefined */
-  tsbAtSession?: number;
-  /** 심박 데이터로 실행 정확도를 평가했는지 (없으면 페이스만으로 평가) */
+  /** 페이스 정확도 (심박 평가 시 0~70, 아니면 0~100) — 강도 구간 한가운데를 얼마나 또렷하게 찍었는지 */
+  paceScore: number;
+  /** 심박 정확도 (0~30) — 목표 심박존에 얼마나 맞았는지. 심박 기록이 없으면 null */
+  hrScore: number | null;
+  /** 심박 데이터로 평가했는지 (없으면 페이스만으로 평가) */
   hrEvaluated: boolean;
   /** "왜 이 점수인지" — 사람이 읽는 설명 */
   breakdown: string[];
@@ -262,56 +260,15 @@ export interface TrainingScore {
   suggestions: string[];
 }
 
-interface LoadFitBand {
-  idealMin: number;
-  idealMax: number;
-  falloff: number;
-  floor: number;
-}
-
 /**
- * 강도별 "이상적인 TSB(폼)" 구간. 강도가 높을수록 신선한 컨디션(TSB가 높음)을 요구하고,
- * 그 범위를 벗어날수록(특히 피로한 상태에서 강하게 훈련했을수록) 감점 폭이 커진다.
- */
-const LOAD_FIT_BANDS: Partial<Record<IntensityZone, LoadFitBand>> = {
-  마라톤: { idealMin: -10, idealMax: 20, falloff: 1.5, floor: 20 },
-  템포: { idealMin: -8, idealMax: 22, falloff: 2.5, floor: 12 },
-  인터벌: { idealMin: 0, idealMax: 25, falloff: 3, floor: 8 },
-  레페티션: { idealMin: 5, idealMax: 25, falloff: 3, floor: 8 },
-};
-
-function loadFitScore(zone: IntensityZone, tsb: number | undefined): { score: number; note: string } {
-  if (tsb === undefined) {
-    return { score: 45, note: "훈련 부하 이력이 아직 짧아 이 항목은 중립 점수를 적용했습니다." };
-  }
-  if (zone === "이지" || zone === "—") {
-    if (tsb < -8) return { score: 60, note: `피로가 쌓인 상태(TSB ${tsb.toFixed(0)})에서 회복 위주로 잘 조절했습니다.` };
-    if (tsb > 30) return { score: 45, note: `이미 충분히 회복된 상태(TSB ${tsb.toFixed(0)})라 조금 더 자극을 줘도 좋았을 시점입니다.` };
-    return { score: 55, note: `무난한 컨디션(TSB ${tsb.toFixed(0)})에서의 가벼운 훈련입니다.` };
-  }
-  const band = LOAD_FIT_BANDS[zone]!;
-  if (tsb >= band.idealMin && tsb <= band.idealMax) {
-    return { score: 60, note: `컨디션(TSB ${tsb.toFixed(0)})이 이 강도를 소화하기 적합한 시점이었습니다.` };
-  }
-  const dist = tsb < band.idealMin ? band.idealMin - tsb : tsb - band.idealMax;
-  const score = Math.max(band.floor, 60 - dist * band.falloff);
-  const note =
-    tsb < band.idealMin
-      ? `피로가 많이 쌓인 상태(TSB ${tsb.toFixed(0)})에서 강도 높은 훈련이라 부담이 컸을 수 있습니다.`
-      : `컨디션이 매우 좋은 상태(TSB ${tsb.toFixed(0)})라 이보다 더 강한 자극도 소화할 수 있었을 것 같습니다.`;
-  return { score, note };
-}
-
-/**
- * 훈련 하나를 현재 체력·컨디션 기준으로 100점 만점 채점한다.
- * - 부하 타이밍 적합도(60점): 그날 TSB(컨디션)에 이 강도가 맞는 선택이었는지 — Banister 모델 기반
- * - 실행 정확도(40점): 고도 보정 페이스(GAP)가 강도 구간 한가운데를 또렷하게 찍었는지(페이스만 있을 때 40점 만점),
- *   심박 기록이 있으면 페이스 25점 + 심박이 목표 구간에 맞았는지 15점으로 나눠 더 정밀하게 평가
+ * 훈련 하나를 그날의 컨디션(TSB)과 무관하게, 순수히 "얼마나 잘 실행했는지"로 100점 만점 채점한다.
+ * 컨디션은 훈련 외 일상생활 영향이 커서 그날 훈련 강도 선택이 옳았는지의 신호로 쓰기엔 약하다고 보고,
+ * 채점에서는 빼고 대신 고도 보정 페이스(GAP)가 강도 구간 한가운데를 얼마나 또렷하게 찍었는지(페이스만
+ * 있을 때 100점 만점), 심박 기록이 있으면 페이스 70점 + 심박이 목표 구간에 맞았는지 30점으로 평가한다.
  */
 export function scoreTraining(
   training: Training,
   predictions: Prediction[],
-  loadSeries: LoadPoint[],
   maxHr?: number,
   restHr?: number
 ): TrainingScore | null {
@@ -322,17 +279,23 @@ export function scoreTraining(
   const zone = classifyIntensity(gap, predictions);
   if (zone === "—") return null;
 
-  const point = loadSeries.find((p) => p.date === training.date);
-  const tsbAtSession = point?.tsb;
-  const { score: loadScore, note: loadNote } = loadFitScore(zone, tsbAtSession);
-
   const centerFrac = gapCenteringFraction(gap, zone, predictions);
   const band = zonePaceBand(zone, predictions);
   const hrRange = training.avgHr ? hrRangeForZone(zone, maxHr, restHr) : null;
 
-  let executionScore: number;
+  const breakdown: string[] = [];
   let hrFrac: number | null = null;
-  const breakdown: string[] = [loadNote];
+  const paceWeight = hrRange && training.avgHr ? 70 : 100;
+  const paceScore = centerFrac * paceWeight;
+
+  breakdown.push(
+    centerFrac >= 0.85
+      ? `페이스가 ${zone} 구간 한가운데를 정확히 찍었습니다.`
+      : centerFrac >= 0.6
+        ? "페이스가 강도 구간 안이었지만 한가운데는 아니었습니다."
+        : "페이스가 강도 구간 경계 쪽에 걸쳐 있었습니다."
+  );
+
   if (hrRange && training.avgHr) {
     const { lo, hi } = hrRange;
     if (training.avgHr >= lo && training.avgHr <= hi) hrFrac = 1;
@@ -341,44 +304,20 @@ export function scoreTraining(
       const dist = training.avgHr < lo ? lo - training.avgHr : training.avgHr - hi;
       hrFrac = Math.max(0, 1 - dist / span);
     }
-    executionScore = centerFrac * 25 + hrFrac * 15;
     breakdown.push(
       hrFrac >= 0.9
         ? `심박 ${training.avgHr}bpm — 목표 구간(${Math.round(lo)}~${Math.round(hi)}bpm)에 잘 맞았습니다.`
         : `심박 ${training.avgHr}bpm — 목표 구간(${Math.round(lo)}~${Math.round(hi)}bpm)과 다소 차이가 있었습니다.`
     );
-  } else {
-    executionScore = centerFrac * 40;
-    breakdown.push(
-      centerFrac >= 0.7
-        ? "페이스가 강도 구간 한가운데를 또렷하게 찍어 깔끔하게 실행됐습니다."
-        : "페이스가 강도 구간 경계에 걸쳐 있어 다소 애매하게 실행됐습니다."
-    );
   }
+  const hrScore = hrFrac !== null ? hrFrac * 30 : null;
 
   // 다음엔 어떻게 하면 더 높은 점수를 받을지 — 감점이 있었던 항목만 구체적으로 짚어준다
   const suggestions: string[] = [];
-  if (tsbAtSession !== undefined && zone !== "이지" && loadScore < 58) {
-    const b = LOAD_FIT_BANDS[zone]!;
-    if (tsbAtSession < b.idealMin) {
-      suggestions.push(
-        `이날은 TSB ${tsbAtSession.toFixed(0)}로 피로가 쌓인 상태였습니다. 다음엔 이 강도(${zone}) 훈련을 TSB ${b.idealMin} 이상일 때로 옮기고, 지친 날엔 이지 조깅으로 회복부터 채워보세요.`
-      );
-    } else {
-      suggestions.push(
-        `TSB ${tsbAtSession.toFixed(0)}로 컨디션이 아주 좋았던 날입니다. 이 정도로 신선할 땐 한 단계 더 강한 훈련(예: 인터벌)을 시도해도 좋습니다.`
-      );
-    }
-  }
-  if (tsbAtSession !== undefined && zone === "이지" && tsbAtSession > 30) {
-    suggestions.push(
-      `TSB ${tsbAtSession.toFixed(0)}로 완전히 회복된 상태였는데 이지 조깅만 하셨습니다. 이런 날엔 템포런이나 인터벌로 자극을 주면 더 높은 점수를 받을 수 있어요.`
-    );
-  }
   if (band && centerFrac < 0.75) {
     const centerPace = (band.lo + band.hi) / 2;
     suggestions.push(
-      `페이스가 ${zone} 구간 경계 쪽에 걸쳐 있었습니다. 다음엔 ${formatPace(centerPace)}/km 근처를 목표로 더 또렷하게 뛰어보면 실행 점수가 올라갑니다.`
+      `페이스가 ${zone} 구간 경계 쪽에 걸쳐 있었습니다. 다음엔 ${formatPace(centerPace)}/km 근처를 목표로 더 또렷하게 뛰어보면 점수가 올라갑니다.`
     );
   }
   if (hrRange && training.avgHr && hrFrac !== null && hrFrac < 0.75) {
@@ -390,16 +329,15 @@ export function scoreTraining(
     );
   }
   if (suggestions.length === 0) {
-    suggestions.push("컨디션 타이밍과 실행 모두 훌륭했습니다 — 지금 방식 그대로 유지하세요!");
+    suggestions.push("목표 구간을 정확히 지켜 훌륭하게 실행했습니다 — 지금 방식 그대로 유지하세요!");
   }
 
-  const score = Math.round(Math.max(0, Math.min(100, loadScore + executionScore)));
+  const score = Math.round(Math.max(0, Math.min(100, paceScore + (hrScore ?? 0))));
   return {
     score,
     zone,
-    loadFitScore: Math.round(loadScore),
-    executionScore: Math.round(executionScore),
-    tsbAtSession,
+    paceScore: Math.round(paceScore),
+    hrScore: hrScore === null ? null : Math.round(hrScore),
     hrEvaluated: Boolean(hrRange && training.avgHr),
     breakdown,
     suggestions,
@@ -410,13 +348,12 @@ export function scoreTraining(
 export function scoreTrainings(
   trainings: Training[],
   predictions: Prediction[],
-  loadSeries: LoadPoint[],
   maxHr?: number,
   restHr?: number
 ): Map<string, TrainingScore> {
   const map = new Map<string, TrainingScore>();
   for (const t of trainings) {
-    const s = scoreTraining(t, predictions, loadSeries, maxHr, restHr);
+    const s = scoreTraining(t, predictions, maxHr, restHr);
     if (s) map.set(t.id, s);
   }
   return map;

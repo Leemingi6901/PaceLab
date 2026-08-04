@@ -247,10 +247,10 @@ export default async function Home() {
         </h2>
         <p className="pl-section-desc">
           서울 인근 훈련 기록. 최근 8회를 보여줍니다. 고도 보정 페이스(GAP)로 업/다운힐을 반영해 훈련 강도를
-          자동 분류하고, 그날의 컨디션(TSB)에 이 강도가 맞았는지 + 페이스·심박이 그 강도를 얼마나 정확히
-          찍었는지를 종합해 100점 만점 훈련 점수를 매깁니다. 점수에 마우스를 올리면 평가 근거가 보입니다.
+          자동 분류하고, 컨디션과 무관하게 그 강도를 페이스·심박으로 얼마나 정확히 실행했는지만으로 100점
+          만점 훈련 점수를 매깁니다. 점수를 누르면 평가 근거가 보입니다.
         </p>
-        <TrainingLog trainings={trainings} predictions={predictions} loadSeries={loadSeries} maxHr={maxHr} restHr={restHr} />
+        <TrainingLog trainings={trainings} predictions={predictions} maxHr={maxHr} restHr={restHr} />
       </section>
 
       {/* 04 월간 마일리지 */}
