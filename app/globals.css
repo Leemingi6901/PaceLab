@@ -1180,3 +1180,117 @@ em {
   font-size: 0.72rem;
   margin-top: 4px;
 }
+
+/* 훈련 점수 배지 */
+.pl-score-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  background: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pl-score-badge.lg {
+  font-size: 1.3rem;
+  padding: 6px 16px;
+  cursor: default;
+}
+
+.pl-score-badge.score-great {
+  color: var(--accent);
+  border-color: rgba(45, 212, 191, 0.4);
+  background: rgba(45, 212, 191, 0.1);
+}
+
+.pl-score-badge.score-good {
+  color: #a3e635;
+  border-color: rgba(163, 230, 53, 0.4);
+  background: rgba(163, 230, 53, 0.1);
+}
+
+.pl-score-badge.score-fair {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.pl-score-badge.score-poor {
+  color: var(--accent2);
+  border-color: rgba(244, 114, 182, 0.4);
+  background: rgba(244, 114, 182, 0.1);
+}
+
+/* 훈련 점수 상세 패널 */
+.pl-detail-row td {
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  white-space: normal;
+}
+
+.pl-score-detail {
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px dashed var(--border);
+  white-space: normal;
+}
+
+.pl-score-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.pl-score-sub {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.pl-score-detail-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.pl-score-detail-cols h4 {
+  font-size: 0.82rem;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.pl-score-detail-cols ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pl-score-detail-cols li {
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.6;
+  padding-left: 14px;
+  position: relative;
+}
+
+.pl-score-detail-cols li::before {
+  content: "·";
+  position: absolute;
+  left: 0;
+  color: var(--muted);
+}
+
+.pl-suggest-list li {
+  color: var(--text);
+}
+
+.pl-suggest-list li::before {
+  content: "↑";
+  color: var(--accent);
+  font-weight: 800;
+}

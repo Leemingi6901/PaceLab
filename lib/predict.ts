@@ -302,20 +302,62 @@ export function effectiveTimeSec(rawTimeSec: number, treadmill?: boolean): numbe
 
 export type IntensityZone = "이지" | "마라톤" | "템포" | "인터벌" | "레페티션" | "—";
 
-/** 고도 보정 페이스를 현재 체력의 거리별 예상 페이스와 비교해 강도 구간을 분류한다 */
-export function classifyIntensity(gapSecPerKm: number, predictions: Prediction[]): IntensityZone {
-  if (predictions.length === 0) return "—";
+interface ZoneBreakpoints {
+  easy: number;
+  marathon: number;
+  tempo: number;
+  interval: number;
+}
+
+/** 예측 페이스(5K/10K/하프/풀코스)로부터 강도 구간 경계(sec/km)를 구한다. 예측이 없으면 null */
+function zoneBreakpoints(predictions: Prediction[]): ZoneBreakpoints | null {
+  if (predictions.length === 0) return null;
   const byLabel = Object.fromEntries(predictions.map((p) => [p.label, p.paceSecPerKm]));
   const full = byLabel["풀코스"];
   const half = byLabel["하프"];
   const tenK = byLabel["10K"];
   const fiveK = byLabel["5K"];
-  if (!full || !half || !tenK || !fiveK) return "—";
-  if (gapSecPerKm >= full * 1.08) return "이지";
-  if (gapSecPerKm >= (full + half) / 2) return "마라톤";
-  if (gapSecPerKm >= (half + tenK) / 2) return "템포";
-  if (gapSecPerKm >= (tenK + fiveK) / 2) return "인터벌";
+  if (!full || !half || !tenK || !fiveK) return null;
+  return { easy: full * 1.08, marathon: (full + half) / 2, tempo: (half + tenK) / 2, interval: (tenK + fiveK) / 2 };
+}
+
+/** 고도 보정 페이스를 현재 체력의 거리별 예상 페이스와 비교해 강도 구간을 분류한다 */
+export function classifyIntensity(gapSecPerKm: number, predictions: Prediction[]): IntensityZone {
+  const bp = zoneBreakpoints(predictions);
+  if (!bp) return "—";
+  if (gapSecPerKm >= bp.easy) return "이지";
+  if (gapSecPerKm >= bp.marathon) return "마라톤";
+  if (gapSecPerKm >= bp.tempo) return "템포";
+  if (gapSecPerKm >= bp.interval) return "인터벌";
   return "레페티션";
+}
+
+/**
+ * 강도 존의 페이스 밴드(sec/km)를 반환한다. lo=빠른 쪽 경계, hi=느린 쪽 경계.
+ * 이지/레페티션처럼 한쪽으로 열린 구간은 인접 구간과 같은 폭을 그 방향으로 가정해 밴드를 만든다.
+ * 예측이 없으면 null.
+ */
+export function zonePaceBand(zone: IntensityZone, predictions: Prediction[]): { lo: number; hi: number } | null {
+  const bp = zoneBreakpoints(predictions);
+  if (!bp || zone === "—") return null;
+  if (zone === "이지") return { lo: bp.easy, hi: bp.easy + (bp.easy - bp.marathon) };
+  if (zone === "마라톤") return { lo: bp.marathon, hi: bp.easy };
+  if (zone === "템포") return { lo: bp.tempo, hi: bp.marathon };
+  if (zone === "인터벌") return { lo: bp.interval, hi: bp.tempo };
+  return { hi: bp.interval, lo: bp.interval - (bp.tempo - bp.interval) };
+}
+
+/**
+ * GAP이 분류된 존의 "한가운데"에 얼마나 가까운지 0(경계 또는 그 너머)~1(정중앙)로 반환한다.
+ * 존 경계에 걸친 애매한 페이스보다 한가운데를 또렷하게 찍은 페이스를 더 "깔끔한 실행"으로 본다.
+ */
+export function gapCenteringFraction(gapSecPerKm: number, zone: IntensityZone, predictions: Prediction[]): number {
+  const band = zonePaceBand(zone, predictions);
+  if (!band) return 0.5;
+  const { lo, hi } = band;
+  const center = (lo + hi) / 2;
+  const halfWidth = (hi - lo) / 2 || 1;
+  return Math.max(0, Math.min(1, 1 - Math.abs(gapSecPerKm - center) / halfWidth));
 }
 
 export type RunnerTierName = "챌린저" | "다이아몬드" | "플래티넘" | "골드" | "실버" | "브론즈" | "언랭크";
@@ -371,13 +413,31 @@ export interface WorkoutRecommendation {
  */
 const HR_ZONES = {
   recovery: { label: "Z1~Z2", min: 0.55, max: 0.7 },
+  marathon: { label: "Z3", min: 0.75, max: 0.84 },
   tempo: { label: "Z4", min: 0.87, max: 0.92 },
   interval: { label: "Z5", min: 0.93, max: 1.0 },
+  repetition: { label: "Z5+", min: 0.95, max: 1.03 },
 } as const;
+
+/** IntensityZone("이지" 등) → HR_ZONES 키 매핑. "—"는 없음 */
+const ZONE_TO_HR_KEY: Record<Exclude<IntensityZone, "—">, keyof typeof HR_ZONES> = {
+  이지: "recovery",
+  마라톤: "marathon",
+  템포: "tempo",
+  인터벌: "interval",
+  레페티션: "repetition",
+};
 
 function hrTarget(pct: number, maxHr: number, restHr?: number): number {
   if (restHr && restHr > 0 && restHr < maxHr) return restHr + pct * (maxHr - restHr);
   return pct * maxHr;
+}
+
+/** 강도 존에 해당하는 목표 심박 범위(bpm)를 반환한다. 최대심박이 없으면 null */
+export function hrRangeForZone(zone: IntensityZone, maxHr?: number, restHr?: number): { lo: number; hi: number } | null {
+  if (!maxHr || maxHr <= 0 || zone === "—") return null;
+  const { min, max } = HR_ZONES[ZONE_TO_HR_KEY[zone]];
+  return { lo: hrTarget(min, maxHr, restHr), hi: hrTarget(max, maxHr, restHr) };
 }
 
 function hrGuidanceFor(
