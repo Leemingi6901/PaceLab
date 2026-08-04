@@ -7,7 +7,8 @@ import {
   formatPace,
   effectiveTimeSec,
   gradeAdjustedPace,
-  classifyIntensity,
+  resolveIntensity,
+  type IntensityZone,
   type Prediction,
 } from "@/lib/predict";
 import { scoreTrainings } from "@/lib/trainingLoad";
@@ -29,7 +30,11 @@ interface EditForm {
   elevLossM: string;
   treadmill: boolean;
   note: string;
+  /** 빈 문자열이면 자동 분류 */
+  intensityOverride: string;
 }
+
+const INTENSITY_OPTIONS: IntensityZone[] = ["이지", "마라톤", "템포", "인터벌", "레페티션"];
 
 function toForm(t: Training): EditForm {
   return {
@@ -41,6 +46,7 @@ function toForm(t: Training): EditForm {
     elevLossM: String(t.elevLossM ?? 0),
     treadmill: t.treadmill ?? false,
     note: t.note ?? "",
+    intensityOverride: t.intensityOverride ?? "",
   };
 }
 
@@ -114,6 +120,7 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
             elevLossM: form.elevLossM || 0,
             treadmill: form.treadmill,
             note: form.note || undefined,
+            intensityOverride: form.intensityOverride || undefined,
           },
         }),
       });
@@ -202,7 +209,7 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
               const correctedSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
               const correctedPace = correctedSec / t.distanceKm;
               const gap = gradeAdjustedPace(correctedSec, t.distanceKm, gain, loss);
-              const zone = classifyIntensity(gap, predictions);
+              const zone = resolveIntensity(gap, predictions, t.intensityOverride);
               const isEditing = editingId === t.id;
 
               if (isEditing && form) {
@@ -260,7 +267,18 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
                       </div>
                     </td>
                     <td>
-                      <span className="pl-edit-hint">자동계산</span>
+                      <select
+                        value={form.intensityOverride}
+                        onChange={(e) => setForm({ ...form, intensityOverride: e.target.value })}
+                        style={{ width: 80 }}
+                      >
+                        <option value="">자동</option>
+                        {INTENSITY_OPTIONS.map((z) => (
+                          <option key={z} value={z}>
+                            {z}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td>
                       <span className="pl-edit-hint">자동계산</span>
@@ -314,7 +332,10 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
                       )}
                     </td>
                     <td>
-                      <span className={`pl-zone ${ZONE_CLASS[zone]}`}>{zone}</span>
+                      <span className={`pl-zone ${ZONE_CLASS[zone]}`} title={t.intensityOverride ? "직접 지정한 강도" : "자동 분류"}>
+                        {zone}
+                        {t.intensityOverride && <span className="pl-zone-manual">✎</span>}
+                      </span>
                     </td>
                     <td>
                       {!score ? (

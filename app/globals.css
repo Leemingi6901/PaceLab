@@ -589,6 +589,12 @@ em {
   color: var(--muted);
 }
 
+.pl-zone-manual {
+  margin-left: 3px;
+  font-size: 0.7em;
+  opacity: 0.75;
+}
+
 .pl-zone.zone-easy {
   color: var(--accent);
   border-color: rgba(45, 212, 191, 0.35);

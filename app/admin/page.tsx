@@ -184,6 +184,16 @@ export default function AdminPage() {
               <input type="checkbox" name="treadmill" />
               <span>트레드밀에서 진행 (페이스 10% 보정 적용)</span>
             </label>
+            <Field label="강도 (선택, 비우면 페이스 기준 자동 분류)">
+              <select name="intensityOverride" defaultValue="">
+                <option value="">자동</option>
+                <option value="이지">이지</option>
+                <option value="마라톤">마라톤</option>
+                <option value="템포">템포</option>
+                <option value="인터벌">인터벌</option>
+                <option value="레페티션">레페티션</option>
+              </select>
+            </Field>
             <Field label="메모">
               <input name="note" placeholder="한강 LSD, 잠실 인터벌…" />
             </Field>

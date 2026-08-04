@@ -6,7 +6,6 @@
  */
 
 import {
-  classifyIntensity,
   currentFitness,
   effectiveTimeSec,
   formatPace,
@@ -15,6 +14,7 @@ import {
   hrRangeForZone,
   parseTime,
   predictAll,
+  resolveIntensity,
   zonePaceBand,
   type FitnessSummary,
   type InbodyEntry,
@@ -276,7 +276,7 @@ export function scoreTraining(
 
   const timeSec = effectiveTimeSec(parseTime(training.time), training.treadmill);
   const gap = gradeAdjustedPace(timeSec, training.distanceKm, training.elevGainM ?? 0, training.elevLossM ?? 0);
-  const zone = classifyIntensity(gap, predictions);
+  const zone = resolveIntensity(gap, predictions, training.intensityOverride);
   if (zone === "—") return null;
 
   const centerFrac = gapCenteringFraction(gap, zone, predictions);

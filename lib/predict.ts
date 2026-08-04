@@ -332,6 +332,15 @@ export function classifyIntensity(gapSecPerKm: number, predictions: Prediction[]
   return "레페티션";
 }
 
+/** 사용자가 강도를 직접 지정했으면 그 값을, 아니면 페이스 기준 자동 분류 결과를 쓴다 */
+export function resolveIntensity(
+  gapSecPerKm: number,
+  predictions: Prediction[],
+  override?: IntensityZone
+): IntensityZone {
+  return override ?? classifyIntensity(gapSecPerKm, predictions);
+}
+
 /**
  * 강도 존의 페이스 밴드(sec/km)를 반환한다. lo=빠른 쪽 경계, hi=느린 쪽 경계.
  * 이지/레페티션처럼 한쪽으로 열린 구간은 인접 구간과 같은 폭을 그 방향으로 가정해 밴드를 만든다.
@@ -492,7 +501,7 @@ export function recommendWorkouts(
   for (const t of sorted) {
     const timeSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
     const gap = gradeAdjustedPace(timeSec, t.distanceKm, t.elevGainM ?? 0, t.elevLossM ?? 0);
-    const zone = classifyIntensity(gap, predictions);
+    const zone = resolveIntensity(gap, predictions, t.intensityOverride);
     if (zone === "템포" || zone === "인터벌" || zone === "레페티션") {
       const d = daysAgo(t.date);
       if (d < daysSinceHard) daysSinceHard = d;

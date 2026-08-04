@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getData, saveData, type PaceLabData, type Training } from "@/lib/store";
-import { segmentsFromProfile, type RaceRecord, type InbodyEntry, type ElevationPoint } from "@/lib/predict";
+import { segmentsFromProfile, type RaceRecord, type InbodyEntry, type ElevationPoint, type IntensityZone } from "@/lib/predict";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +36,12 @@ function num(v: unknown): number | undefined {
   return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
+const INTENSITY_ZONES: IntensityZone[] = ["이지", "마라톤", "템포", "인터벌", "레페티션"];
+
+function intensityOverride(v: unknown): IntensityZone | undefined {
+  return INTENSITY_ZONES.includes(v as IntensityZone) ? (v as IntensityZone) : undefined;
+}
+
 function buildTraining(e: Record<string, unknown>): Omit<Training, "id"> {
   if (!DATE_RE.test(String(e.date)) || !TIME_RE.test(String(e.time)) || !(Number(e.distanceKm) > 0)) {
     throw new Error("날짜(YYYY-MM-DD)/거리/시간(MM:SS 또는 H:MM:SS)을 확인하세요.");
@@ -49,6 +55,7 @@ function buildTraining(e: Record<string, unknown>): Omit<Training, "id"> {
     elevLossM: num(e.elevLossM) ?? 0,
     treadmill: e.treadmill === true || e.treadmill === "true" || e.treadmill === "on",
     note: e.note ? String(e.note) : undefined,
+    intensityOverride: intensityOverride(e.intensityOverride),
   };
 }
 
