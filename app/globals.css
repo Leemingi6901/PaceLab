@@ -601,25 +601,13 @@ em {
   background: rgba(45, 212, 191, 0.08);
 }
 
-.pl-zone.zone-marathon {
-  color: #a3e635;
-  border-color: rgba(163, 230, 53, 0.35);
-  background: rgba(163, 230, 53, 0.08);
-}
-
-.pl-zone.zone-tempo {
+.pl-zone.zone-normal {
   color: #fbbf24;
   border-color: rgba(251, 191, 36, 0.35);
   background: rgba(251, 191, 36, 0.08);
 }
 
-.pl-zone.zone-interval {
-  color: #fb923c;
-  border-color: rgba(251, 146, 60, 0.35);
-  background: rgba(251, 146, 60, 0.08);
-}
-
-.pl-zone.zone-rep {
+.pl-zone.zone-hard {
   color: var(--accent2);
   border-color: rgba(244, 114, 182, 0.35);
   background: rgba(244, 114, 182, 0.08);

@@ -36,7 +36,7 @@ function num(v: unknown): number | undefined {
   return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
-const INTENSITY_ZONES: IntensityZone[] = ["이지", "마라톤", "템포", "인터벌", "레페티션"];
+const INTENSITY_ZONES: IntensityZone[] = ["이지", "보통", "하드"];
 
 function intensityOverride(v: unknown): IntensityZone | undefined {
   return INTENSITY_ZONES.includes(v as IntensityZone) ? (v as IntensityZone) : undefined;

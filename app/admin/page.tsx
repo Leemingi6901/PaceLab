@@ -6,7 +6,7 @@ import { buildLoadSeries, estimateFitness } from "@/lib/trainingLoad";
 
 type Msg = { kind: "ok" | "err"; text: string } | null;
 
-const INTENSITY_OPTIONS: IntensityZone[] = ["이지", "마라톤", "템포", "인터벌", "레페티션"];
+const INTENSITY_OPTIONS: IntensityZone[] = ["이지", "보통", "하드"];
 
 function Field({
   label,

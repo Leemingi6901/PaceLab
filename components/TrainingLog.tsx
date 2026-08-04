@@ -35,7 +35,7 @@ interface EditForm {
   intensityOverride: string;
 }
 
-const INTENSITY_OPTIONS: IntensityZone[] = ["이지", "마라톤", "템포", "인터벌", "레페티션"];
+const INTENSITY_OPTIONS: IntensityZone[] = ["이지", "보통", "하드"];
 
 function toForm(t: Training): EditForm {
   return {
@@ -53,10 +53,8 @@ function toForm(t: Training): EditForm {
 
 const ZONE_CLASS: Record<string, string> = {
   이지: "zone-easy",
-  마라톤: "zone-marathon",
-  템포: "zone-tempo",
-  인터벌: "zone-interval",
-  레페티션: "zone-rep",
+  보통: "zone-normal",
+  하드: "zone-hard",
   "—": "",
 };
 
@@ -220,7 +218,7 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
               const correctedSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
               const correctedPace = correctedSec / t.distanceKm;
               const gap = gradeAdjustedPace(correctedSec, t.distanceKm, gain, loss);
-              const zone = resolveIntensity(gap, predictions, t.intensityOverride);
+              const zone = resolveIntensity(gap, predictions, t.intensityOverride, t.avgHr, maxHr, restHr);
               const isEditing = editingId === t.id;
 
               if (isEditing && form) {
@@ -360,9 +358,7 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
                     </td>
                     <td>
                       {!score ? (
-                        <span title={t.intensityOverride ? undefined : "강도를 직접 지정해야 채점됩니다 (자동 추정은 참고용)"}>
-                          —
-                        </span>
+                        "—"
                       ) : (
                         <button
                           type="button"
@@ -392,11 +388,7 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
                         <div className="pl-score-detail">
                           <div className="pl-score-detail-head">
                             <span className={`pl-score-badge lg ${scoreClass(score.score)}`}>{score.score}점</span>
-                            <span className="pl-score-sub">
-                              {score.hrScore !== null
-                                ? `페이스 정확도 ${score.paceScore}/70 · 심박 정확도 ${score.hrScore}/30`
-                                : `페이스 정확도 ${score.paceScore}/100`}
-                            </span>
+                            <span className="pl-score-sub">"{score.zone}" 강도 기준 페이스 정확도</span>
                           </div>
                           <div className="pl-score-detail-cols">
                             <div>

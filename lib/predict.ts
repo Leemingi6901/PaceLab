@@ -300,60 +300,73 @@ export function effectiveTimeSec(rawTimeSec: number, treadmill?: boolean): numbe
   return treadmill ? rawTimeSec * TREADMILL_CORRECTION : rawTimeSec;
 }
 
-export type IntensityZone = "이지" | "마라톤" | "템포" | "인터벌" | "레페티션" | "—";
+export type IntensityZone = "이지" | "보통" | "하드" | "—";
 
 interface ZoneBreakpoints {
+  /** 이보다 느리면 이지 (풀코스 페이스 × 1.08) */
   easy: number;
-  marathon: number;
-  tempo: number;
-  interval: number;
+  /** 이보다 빠르면 하드, 이 값과 easy 사이면 보통 (풀코스·하프 중간 페이스) */
+  hard: number;
 }
 
-/** 예측 페이스(5K/10K/하프/풀코스)로부터 강도 구간 경계(sec/km)를 구한다. 예측이 없으면 null */
+/** 예측 페이스(하프/풀코스)로부터 강도 구간 경계(sec/km)를 구한다. 예측이 없으면 null */
 function zoneBreakpoints(predictions: Prediction[]): ZoneBreakpoints | null {
   if (predictions.length === 0) return null;
   const byLabel = Object.fromEntries(predictions.map((p) => [p.label, p.paceSecPerKm]));
   const full = byLabel["풀코스"];
   const half = byLabel["하프"];
-  const tenK = byLabel["10K"];
-  const fiveK = byLabel["5K"];
-  if (!full || !half || !tenK || !fiveK) return null;
-  return { easy: full * 1.08, marathon: (full + half) / 2, tempo: (half + tenK) / 2, interval: (tenK + fiveK) / 2 };
+  if (!full || !half) return null;
+  return { easy: full * 1.08, hard: (full + half) / 2 };
 }
 
-/** 고도 보정 페이스를 현재 체력의 거리별 예상 페이스와 비교해 강도 구간을 분류한다 */
+/** 고도 보정 페이스를 현재 체력의 예상 페이스와 비교해 강도(이지/보통/하드)를 분류한다 */
 export function classifyIntensity(gapSecPerKm: number, predictions: Prediction[]): IntensityZone {
   const bp = zoneBreakpoints(predictions);
   if (!bp) return "—";
   if (gapSecPerKm >= bp.easy) return "이지";
-  if (gapSecPerKm >= bp.marathon) return "마라톤";
-  if (gapSecPerKm >= bp.tempo) return "템포";
-  if (gapSecPerKm >= bp.interval) return "인터벌";
-  return "레페티션";
+  if (gapSecPerKm >= bp.hard) return "보통";
+  return "하드";
 }
 
-/** 사용자가 강도를 직접 지정했으면 그 값을, 아니면 페이스 기준 자동 분류 결과를 쓴다 */
+const HR_EASY_MAX = 0.72; // 이보다 낮은 %여유심박이면 이지
+const HR_HARD_MIN = 0.86; // 이보다 높은 %여유심박이면 하드
+
+/** 평균 심박(여유심박 %)으로 강도(이지/보통/하드)를 분류한다. 페이스보다 그날의 실제 체감 강도를 더 직접적으로 반영한다 */
+export function classifyIntensityFromHr(avgHr: number, maxHr: number, restHr?: number): IntensityZone {
+  const pct = restHr && restHr > 0 && restHr < maxHr ? (avgHr - restHr) / (maxHr - restHr) : avgHr / maxHr;
+  if (pct < HR_EASY_MAX) return "이지";
+  if (pct < HR_HARD_MIN) return "보통";
+  return "하드";
+}
+
+/**
+ * 강도를 결정한다: 직접 태그 > 심박(있으면, 그날 체감 강도를 더 직접 반영) > 페이스 자동 분류 순.
+ */
 export function resolveIntensity(
   gapSecPerKm: number,
   predictions: Prediction[],
-  override?: IntensityZone
+  override?: IntensityZone,
+  avgHr?: number,
+  maxHr?: number,
+  restHr?: number
 ): IntensityZone {
-  return override ?? classifyIntensity(gapSecPerKm, predictions);
+  if (override) return override;
+  if (avgHr && maxHr) return classifyIntensityFromHr(avgHr, maxHr, restHr);
+  return classifyIntensity(gapSecPerKm, predictions);
 }
 
 /**
  * 강도 존의 페이스 밴드(sec/km)를 반환한다. lo=빠른 쪽 경계, hi=느린 쪽 경계.
- * 이지/레페티션처럼 한쪽으로 열린 구간은 인접 구간과 같은 폭을 그 방향으로 가정해 밴드를 만든다.
+ * 이지/하드처럼 한쪽으로 열린 구간은 보통 구간과 같은 폭을 그 방향으로 가정해 밴드를 만든다.
  * 예측이 없으면 null.
  */
 export function zonePaceBand(zone: IntensityZone, predictions: Prediction[]): { lo: number; hi: number } | null {
   const bp = zoneBreakpoints(predictions);
   if (!bp || zone === "—") return null;
-  if (zone === "이지") return { lo: bp.easy, hi: bp.easy + (bp.easy - bp.marathon) };
-  if (zone === "마라톤") return { lo: bp.marathon, hi: bp.easy };
-  if (zone === "템포") return { lo: bp.tempo, hi: bp.marathon };
-  if (zone === "인터벌") return { lo: bp.interval, hi: bp.tempo };
-  return { hi: bp.interval, lo: bp.interval - (bp.tempo - bp.interval) };
+  const width = bp.easy - bp.hard;
+  if (zone === "이지") return { lo: bp.easy, hi: bp.easy + width };
+  if (zone === "보통") return { lo: bp.hard, hi: bp.easy };
+  return { hi: bp.hard, lo: bp.hard - width };
 }
 
 /** "5'58"~6'12"/km" 처럼 강도 존의 목표 페이스 범위를 사람이 읽는 문자열로 반환한다 */
@@ -364,8 +377,9 @@ export function zoneBandLabel(zone: IntensityZone, predictions: Prediction[]): s
 }
 
 /**
- * GAP이 분류된 존의 "한가운데"에 얼마나 가까운지 0(경계 또는 그 너머)~1(정중앙)로 반환한다.
- * 존 경계에 걸친 애매한 페이스보다 한가운데를 또렷하게 찍은 페이스를 더 "깔끔한 실행"으로 본다.
+ * GAP이 분류된 존의 "한가운데"에 얼마나 가까운지 0~1로 반환한다 (1=정중앙).
+ * 경계를 살짝 벗어난 정도로 0점까지 뚝 떨어지지 않도록, 구간 밖으로도 완만하게 감쇠시킨다
+ * (반폭의 2.5배 떨어진 지점에서 0에 도달).
  */
 export function gapCenteringFraction(gapSecPerKm: number, zone: IntensityZone, predictions: Prediction[]): number {
   const band = zonePaceBand(zone, predictions);
@@ -373,7 +387,8 @@ export function gapCenteringFraction(gapSecPerKm: number, zone: IntensityZone, p
   const { lo, hi } = band;
   const center = (lo + hi) / 2;
   const halfWidth = (hi - lo) / 2 || 1;
-  return Math.max(0, Math.min(1, 1 - Math.abs(gapSecPerKm - center) / halfWidth));
+  const reach = halfWidth * 2.5;
+  return Math.max(0, Math.min(1, 1 - Math.abs(gapSecPerKm - center) / reach));
 }
 
 export type RunnerTierName = "챌린저" | "다이아몬드" | "플래티넘" | "골드" | "실버" | "브론즈" | "언랭크";
@@ -435,25 +450,9 @@ const HR_ZONES = {
   repetition: { label: "Z5+", min: 0.95, max: 1.03 },
 } as const;
 
-/** IntensityZone("이지" 등) → HR_ZONES 키 매핑. "—"는 없음 */
-const ZONE_TO_HR_KEY: Record<Exclude<IntensityZone, "—">, keyof typeof HR_ZONES> = {
-  이지: "recovery",
-  마라톤: "marathon",
-  템포: "tempo",
-  인터벌: "interval",
-  레페티션: "repetition",
-};
-
 function hrTarget(pct: number, maxHr: number, restHr?: number): number {
   if (restHr && restHr > 0 && restHr < maxHr) return restHr + pct * (maxHr - restHr);
   return pct * maxHr;
-}
-
-/** 강도 존에 해당하는 목표 심박 범위(bpm)를 반환한다. 최대심박이 없으면 null */
-export function hrRangeForZone(zone: IntensityZone, maxHr?: number, restHr?: number): { lo: number; hi: number } | null {
-  if (!maxHr || maxHr <= 0 || zone === "—") return null;
-  const { min, max } = HR_ZONES[ZONE_TO_HR_KEY[zone]];
-  return { lo: hrTarget(min, maxHr, restHr), hi: hrTarget(max, maxHr, restHr) };
 }
 
 function hrGuidanceFor(
@@ -508,8 +507,8 @@ export function recommendWorkouts(
   for (const t of sorted) {
     const timeSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
     const gap = gradeAdjustedPace(timeSec, t.distanceKm, t.elevGainM ?? 0, t.elevLossM ?? 0);
-    const zone = resolveIntensity(gap, predictions, t.intensityOverride);
-    if (zone === "템포" || zone === "인터벌" || zone === "레페티션") {
+    const zone = resolveIntensity(gap, predictions, t.intensityOverride, t.avgHr, maxHr, restHr);
+    if (zone === "하드") {
       const d = daysAgo(t.date);
       if (d < daysSinceHard) daysSinceHard = d;
     }

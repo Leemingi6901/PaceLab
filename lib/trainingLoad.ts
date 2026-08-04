@@ -11,7 +11,6 @@ import {
   formatPace,
   gapCenteringFraction,
   gradeAdjustedPace,
-  hrRangeForZone,
   parseTime,
   predictAll,
   resolveIntensity,
@@ -245,15 +244,9 @@ export function estimateFitness(
 }
 
 export interface TrainingScore {
-  /** 0~100점 — 컨디션(TSB)과 무관하게, 그 강도를 얼마나 정확히 실행했는지만으로 평가 */
+  /** 0~100점 — 컨디션(TSB)과 무관하게, 그날 강도를 페이스로 얼마나 정확히 실행했는지만으로 평가 */
   score: number;
   zone: IntensityZone;
-  /** 페이스 정확도 (심박 평가 시 0~70, 아니면 0~100) — 강도 구간 한가운데를 얼마나 또렷하게 찍었는지 */
-  paceScore: number;
-  /** 심박 정확도 (0~30) — 목표 심박존에 얼마나 맞았는지. 심박 기록이 없으면 null */
-  hrScore: number | null;
-  /** 심박 데이터로 평가했는지 (없으면 페이스만으로 평가) */
-  hrEvaluated: boolean;
   /** "왜 이 점수인지" — 사람이 읽는 설명 */
   breakdown: string[];
   /** "다음엔 어떻게 하면 더 높은 점수를 받을지" — 만점이면 칭찬 문구 하나만 */
@@ -262,9 +255,9 @@ export interface TrainingScore {
 
 /**
  * 훈련 하나를 그날의 컨디션(TSB)과 무관하게, 순수히 "얼마나 잘 실행했는지"로 100점 만점 채점한다.
- * 컨디션은 훈련 외 일상생활 영향이 커서 그날 훈련 강도 선택이 옳았는지의 신호로 쓰기엔 약하다고 보고,
- * 채점에서는 빼고 대신 고도 보정 페이스(GAP)가 강도 구간 한가운데를 얼마나 또렷하게 찍었는지(페이스만
- * 있을 때 100점 만점), 심박 기록이 있으면 페이스 70점 + 심박이 목표 구간에 맞았는지 30점으로 평가한다.
+ * 강도(이지/보통/하드)는 직접 태그 > 평균심박(있으면, 그날 실제 체감 강도를 가장 직접적으로 반영) >
+ * 페이스 자동 분류 순으로 정하고, 점수 자체는 오직 고도 보정 페이스(GAP)가 그 강도 구간 한가운데를
+ * 얼마나 또렷하게 찍었는지로만 매긴다 — 마라톤/롱런 같은 훈련 유형 구분과는 무관하다.
  */
 export function scoreTraining(
   training: Training,
@@ -273,79 +266,43 @@ export function scoreTraining(
   restHr?: number
 ): TrainingScore | null {
   if (predictions.length === 0) return null;
-  // 강도를 직접 태그하지 않은 기록은 채점하지 않는다 — 페이스만 보고 마라톤/이지 등을
-  // 추정하는 자동분류는 표시용 참고 정보일 뿐, 어떤 강도로 뛰려 했는지에 대한 확실한
-  // 근거가 아니라서 "목표를 얼마나 정확히 실행했는지" 채점의 기준으로 쓰기엔 부적절하다.
-  if (!training.intensityOverride) return null;
 
   const timeSec = effectiveTimeSec(parseTime(training.time), training.treadmill);
   const gap = gradeAdjustedPace(timeSec, training.distanceKm, training.elevGainM ?? 0, training.elevLossM ?? 0);
-  const zone = resolveIntensity(gap, predictions, training.intensityOverride);
+  const zone = resolveIntensity(gap, predictions, training.intensityOverride, training.avgHr, maxHr, restHr);
   if (zone === "—") return null;
 
   const centerFrac = gapCenteringFraction(gap, zone, predictions);
   const band = zonePaceBand(zone, predictions);
-  const hrRange = training.avgHr ? hrRangeForZone(zone, maxHr, restHr) : null;
+  const score = Math.round(Math.max(0, Math.min(100, centerFrac * 100)));
 
   const breakdown: string[] = [];
-  let hrFrac: number | null = null;
-  const paceWeight = hrRange && training.avgHr ? 70 : 100;
-  const paceScore = centerFrac * paceWeight;
-
+  breakdown.push(
+    training.intensityOverride
+      ? `직접 지정한 "${zone}" 강도 기준으로 채점했습니다.`
+      : training.avgHr && maxHr
+        ? `평균심박 ${training.avgHr}bpm을 기준으로 "${zone}" 강도로 판단했습니다.`
+        : `페이스를 기준으로 "${zone}" 강도로 판단했습니다.`
+  );
   breakdown.push(
     centerFrac >= 0.85
       ? `페이스가 ${zone} 구간 한가운데를 정확히 찍었습니다.`
       : centerFrac >= 0.6
         ? "페이스가 강도 구간 안이었지만 한가운데는 아니었습니다."
-        : "페이스가 강도 구간 경계 쪽에 걸쳐 있었습니다."
+        : "페이스가 강도 구간에서 다소 벗어나 있었습니다."
   );
 
-  if (hrRange && training.avgHr) {
-    const { lo, hi } = hrRange;
-    if (training.avgHr >= lo && training.avgHr <= hi) hrFrac = 1;
-    else {
-      const span = hi - lo || 1;
-      const dist = training.avgHr < lo ? lo - training.avgHr : training.avgHr - hi;
-      hrFrac = Math.max(0, 1 - dist / span);
-    }
-    breakdown.push(
-      hrFrac >= 0.9
-        ? `심박 ${training.avgHr}bpm — 목표 구간(${Math.round(lo)}~${Math.round(hi)}bpm)에 잘 맞았습니다.`
-        : `심박 ${training.avgHr}bpm — 목표 구간(${Math.round(lo)}~${Math.round(hi)}bpm)과 다소 차이가 있었습니다.`
-    );
-  }
-  const hrScore = hrFrac !== null ? hrFrac * 30 : null;
-
-  // 다음엔 어떻게 하면 더 높은 점수를 받을지 — 감점이 있었던 항목만 구체적으로 짚어준다
   const suggestions: string[] = [];
   if (band && centerFrac < 0.75) {
     const centerPace = (band.lo + band.hi) / 2;
     suggestions.push(
-      `페이스가 ${zone} 구간 경계 쪽에 걸쳐 있었습니다. 다음엔 ${formatPace(centerPace)}/km 근처를 목표로 더 또렷하게 뛰어보면 점수가 올라갑니다.`
+      `다음엔 ${formatPace(centerPace)}/km 근처를 목표로 더 또렷하게 뛰어보면 점수가 올라갑니다.`
     );
-  }
-  if (hrRange && training.avgHr && hrFrac !== null && hrFrac < 0.75) {
-    const dir = training.avgHr < hrRange.lo ? "조금 더 끌어올릴" : "조금 늦출";
-    suggestions.push(
-      `심박이 목표 구간(${Math.round(hrRange.lo)}~${Math.round(hrRange.hi)}bpm)을 ${
-        training.avgHr < hrRange.lo ? "밑돌았습니다" : "웃돌았습니다"
-      }. 페이스를 ${dir} 수 있는지 다음 훈련에서 확인해보세요.`
-    );
-  }
-  if (suggestions.length === 0) {
-    suggestions.push("목표 구간을 정확히 지켜 훌륭하게 실행했습니다 — 지금 방식 그대로 유지하세요!");
+  } else {
+    suggestions.push("목표 강도를 정확히 지켜 훌륭하게 실행했습니다 — 지금 방식 그대로 유지하세요!");
   }
 
-  const score = Math.round(Math.max(0, Math.min(100, paceScore + (hrScore ?? 0))));
-  return {
-    score,
-    zone,
-    paceScore: Math.round(paceScore),
-    hrScore: hrScore === null ? null : Math.round(hrScore),
-    hrEvaluated: Boolean(hrRange && training.avgHr),
-    breakdown,
-    suggestions,
-  };
+  return { score, zone, breakdown, suggestions };
 }
 
 /** trainings 배열 전체를 한 번에 채점해 훈련 id → TrainingScore 맵으로 반환한다 */
