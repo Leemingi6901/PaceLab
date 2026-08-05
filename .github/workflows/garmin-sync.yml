@@ -4,7 +4,12 @@ on:
   schedule:
     # 6시간마다 (UTC) — 한국시간(KST, UTC+9) 기준 03:00 / 09:00 / 15:00 / 21:00
     - cron: "0 */6 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: "며칠치 활동을 확인할지 (과거 기록 백필 시 늘려서 수동 실행)"
+        required: false
+        default: "3"
 
 jobs:
   sync:
@@ -24,4 +29,5 @@ jobs:
           GARMIN_TOKENS_B64: ${{ secrets.GARMIN_TOKENS_B64 }}
           PACELAB_URL: ${{ secrets.PACELAB_URL }}
           ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
+          SYNC_DAYS_BACK: ${{ github.event.inputs.days_back || '3' }}
         run: python scripts/garmin_sync.py
