@@ -319,6 +319,20 @@ em {
   background: linear-gradient(180deg, var(--accent3), rgba(167, 139, 250, 0.25));
 }
 
+.pl-bar-vo2 {
+  background: linear-gradient(180deg, #fbbf24, rgba(251, 191, 36, 0.25));
+}
+
+.pl-vo2-block {
+  margin-top: 20px;
+}
+
+.pl-vo2-title {
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
 .pl-inbody-col small {
   color: var(--muted);
   font-size: 0.72rem;

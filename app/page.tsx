@@ -47,6 +47,7 @@ export default async function Home() {
   const maxW = Math.max(...inbody.map((m) => m.weightKg), 1);
   const maxF = Math.max(...inbody.map((m) => m.bodyFatPct), 1);
   const maxM = Math.max(...inbody.map((m) => m.muscleKg), 1);
+  const maxVo2 = Math.max(...vo2max.map((v) => v.vo2max), 1);
 
   const now = Date.now();
   const inLastDays = (dateStr: string, days: number) => now - new Date(dateStr).getTime() < days * 86400000;
@@ -246,6 +247,22 @@ export default async function Home() {
               </span>
             </div>
           </>
+        )}
+        {vo2max.length > 0 && (
+          <div className="pl-vo2-block">
+            <h3 className="pl-vo2-title">VO2max 추이</h3>
+            <div className="pl-inbody">
+              {vo2max.map((v) => (
+                <div key={v.date} className="pl-inbody-col">
+                  <div className="pl-bars">
+                    <div className="pl-bar pl-bar-vo2" style={{ height: `${(v.vo2max / maxVo2) * 100}%` }} />
+                  </div>
+                  <div className="pl-vals">{v.vo2max}</div>
+                  <small>{v.date}</small>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </section>
 
