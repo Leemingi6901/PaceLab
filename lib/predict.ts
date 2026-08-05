@@ -223,6 +223,13 @@ export function predictAll(fit: FitnessSummary | null): Prediction[] {
   });
 }
 
+/** 목표 거리(km)와 가장 가까운(±15% 이내) 공식 기록 중 가장 빠른 것을 PB로 반환한다. 없으면 null */
+export function personalBest(races: RaceRecord[], targetKm: number, tolerance = 0.15): RaceRecord | null {
+  const matches = races.filter((r) => Math.abs(r.distanceKm - targetKm) / targetKm <= tolerance);
+  if (matches.length === 0) return null;
+  return matches.reduce((best, r) => (parseTime(r.time) < parseTime(best.time) ? r : best));
+}
+
 export interface SplitPrediction {
   fromKm: number;
   toKm: number;

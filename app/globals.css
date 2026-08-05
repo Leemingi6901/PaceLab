@@ -245,6 +245,14 @@ em {
   color: var(--accent2);
 }
 
+.pl-pb-sub {
+  display: block;
+  margin-top: 6px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .pl-time-range {
   font-size: 1.28rem !important;
   white-space: nowrap;

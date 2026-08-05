@@ -6,6 +6,7 @@ import {
   parseTime,
   formatTime,
   formatPace,
+  personalBest,
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
 import { buildLoadSeries, summarizeLoad, estimateFitness, CTL_FACTOR_CAP, COMBINED_FACTOR_CAP } from "@/lib/trainingLoad";
@@ -146,17 +147,25 @@ export default async function Home() {
         {predictions.length > 0 && (
           <div className="pl-hero-pb" id="prediction">
             <div className="pl-grid">
-              {predictions.map((p) => (
-                <div key={p.label} className="pl-card pl-pred">
-                  <span className="pl-badge">{p.label}</span>
-                  <div className="pl-time pl-time-range">
-                    {formatTime(p.lowSec)} ~ {formatTime(p.highSec)}
+              {predictions.map((p) => {
+                const pb = personalBest(races, p.distanceKm);
+                return (
+                  <div key={p.label} className="pl-card pl-pred">
+                    <span className="pl-badge">{p.label}</span>
+                    <div className="pl-time pl-time-range">
+                      {formatTime(p.lowSec)} ~ {formatTime(p.highSec)}
+                    </div>
+                    <span className="pl-sub">
+                      {formatTime(p.timeSec)} 확률 가장 높음 · {formatPace(p.paceSecPerKm)}/km
+                    </span>
+                    {pb && (
+                      <span className="pl-pb-sub">
+                        내 PB {pb.time} · {pb.race} ({pb.date})
+                      </span>
+                    )}
                   </div>
-                  <span className="pl-sub">
-                    {formatTime(p.timeSec)} 확률 가장 높음 · {formatPace(p.paceSecPerKm)}/km
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
