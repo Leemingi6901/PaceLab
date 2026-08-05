@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getData, saveData, type PaceLabData, type Training } from "@/lib/store";
-import { segmentsFromProfile, type RaceRecord, type InbodyEntry, type ElevationPoint, type IntensityZone } from "@/lib/predict";
+import { segmentsFromProfile, parseTime, type RaceRecord, type InbodyEntry, type ElevationPoint, type IntensityZone } from "@/lib/predict";
 
 export const dynamic = "force-dynamic";
 
@@ -128,8 +128,19 @@ export async function POST(req: Request) {
     } else if (type === "training") {
       const built = buildTraining(entry);
       // garminId가 있고 이미 저장된 기록이면 새로 추가하지 않고 덮어쓴다 (자동 동기화 중복 방지).
-      // 단, 기존 기록에 사용자가 직접 지정한 강도(intensityOverride)가 있으면 그대로 보존한다.
-      const existingIdx = built.garminId ? data.trainings.findIndex((t) => t.garminId === built.garminId) : -1;
+      // garminId가 아직 없는 기존 기록(수동 입력분)이라도 같은 날짜·비슷한 거리·시간이면
+      // 같은 활동으로 보고 그 기록에 garminId를 붙여 병합한다 — 그래야 이후 동기화부터
+      // 정상적으로 매칭돼 중복이 생기지 않는다.
+      let existingIdx = built.garminId ? data.trainings.findIndex((t) => t.garminId === built.garminId) : -1;
+      if (existingIdx === -1 && built.garminId) {
+        existingIdx = data.trainings.findIndex(
+          (t) =>
+            !t.garminId &&
+            t.date === built.date &&
+            Math.abs(t.distanceKm - built.distanceKm) < 0.1 &&
+            Math.abs(parseTime(t.time) - parseTime(built.time)) < 60
+        );
+      }
       if (existingIdx >= 0) {
         data.trainings[existingIdx] = {
           ...data.trainings[existingIdx],

@@ -18,6 +18,7 @@ GARMIN_TOKENS_B64 시크릿으로 등록해둬야 이 스크립트가 재로그�
 
 import base64
 import io
+import json
 import os
 import sys
 import tarfile
@@ -86,6 +87,26 @@ def login() -> Garmin:
     return api
 
 
+def deep_find_number(obj, key_matches) -> float | None:
+    """중첩된 dict/list 안에서 key_matches(key)가 참인 첫 숫자 값을 재귀적으로 찾는다.
+    가민의 비공식 API 응답 구조가 계정/기기/시기에 따라 달라질 수 있어, 정확한 키 경로
+    대신 이름 패턴으로 유연하게 찾는다."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if key_matches(k) and isinstance(v, (int, float)) and v:
+                return v
+        for v in obj.values():
+            found = deep_find_number(v, key_matches)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = deep_find_number(item, key_matches)
+            if found is not None:
+                return found
+    return None
+
+
 def fmt_time(seconds: float) -> str:
     total = round(seconds)
     h, rem = divmod(total, 3600)
@@ -120,8 +141,13 @@ def sync_activities(api: Garmin, base_url: str, pin: str, days_back: int) -> Non
             "treadmill": "treadmill" in type_key,
             "garminId": str(activity_id),
         }
-        if a.get("avgHR"):
-            entry["avgHr"] = round(a["avgHR"])
+        avg_hr = deep_find_number(
+            a, lambda k: k.lower() in ("avghr", "averagehr", "avgheartrate", "averageheartrate")
+        )
+        if avg_hr:
+            entry["avgHr"] = round(avg_hr)
+        else:
+            print(f"  ({date_str} 평균심박을 응답에서 못 찾음: {json.dumps(a, ensure_ascii=False)[:300]})")
         if a.get("activityName"):
             entry["note"] = f"Garmin: {a['activityName']}"
 
@@ -142,21 +168,15 @@ def sync_vo2max(api: Garmin, base_url: str, pin: str) -> None:
         print(f"VO2max 조회 실패(건너뜀): {e}", file=sys.stderr)
         return
 
-    value = None
-    candidates = raw if isinstance(raw, list) else [raw]
-    for item in candidates:
-        if not isinstance(item, dict):
-            continue
-        generic = item.get("generic") or {}
-        for key in ("vo2MaxPreciseValue", "vo2MaxValue"):
-            value = generic.get(key) or item.get(key)
-            if value:
-                break
-        if value:
-            break
+    value = deep_find_number(raw, lambda k: "vo2max" in k.lower() and "value" in k.lower())
+    if not value:
+        value = deep_find_number(raw, lambda k: k.lower() == "vo2max")
 
     if not value:
-        print("VO2max 값을 응답에서 찾지 못했습니다 (건너뜀) — 응답 구조가 바뀌었을 수 있습니다.")
+        print(
+            "VO2max 값을 응답에서 찾지 못했습니다 (건너뜀) — 응답 구조 확인용 원본: "
+            f"{json.dumps(raw, ensure_ascii=False)[:500]}"
+        )
         return
 
     r = requests.post(
