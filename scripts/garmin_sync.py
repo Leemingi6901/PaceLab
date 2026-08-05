@@ -160,31 +160,32 @@ def sync_activities(api: Garmin, base_url: str, pin: str, days_back: int) -> Non
         print(f"  {entry['date']} {entry['distanceKm']}km {entry['time']} -> {status}")
 
 
-def sync_vo2max(api: Garmin, base_url: str, pin: str) -> None:
-    today = date.today().isoformat()
-    try:
-        raw = api.get_max_metrics(today)
-    except Exception as e:  # noqa: BLE001 - 이 API는 계정/기기에 따라 자주 예외를 던진다
-        print(f"VO2max 조회 실패(건너뜀): {e}", file=sys.stderr)
-        return
+def sync_vo2max(api: Garmin, base_url: str, pin: str, lookback_days: int = 14) -> None:
+    # 가민이 매일 VO2max를 새로 계산해주는 건 아니라서(양질의 러닝을 해야 갱신됨),
+    # 오늘 값이 비어 있으면 최근 며칠을 거슬러 올라가며 가장 최근에 갱신된 값을 찾는다.
+    for days_ago in range(lookback_days):
+        day = (date.today() - timedelta(days=days_ago)).isoformat()
+        try:
+            raw = api.get_max_metrics(day)
+        except Exception as e:  # noqa: BLE001 - 이 API는 계정/기기에 따라 자주 예외를 던진다
+            print(f"VO2max 조회 실패({day}): {e}", file=sys.stderr)
+            continue
 
-    value = deep_find_number(raw, lambda k: "vo2max" in k.lower() and "value" in k.lower())
-    if not value:
-        value = deep_find_number(raw, lambda k: k.lower() == "vo2max")
+        value = deep_find_number(raw, lambda k: "vo2max" in k.lower() and "value" in k.lower())
+        if not value:
+            value = deep_find_number(raw, lambda k: k.lower() == "vo2max")
+        if not value:
+            continue
 
-    if not value:
-        print(
-            "VO2max 값을 응답에서 찾지 못했습니다 (건너뜀) — 응답 구조 확인용 원본: "
-            f"{json.dumps(raw, ensure_ascii=False)[:500]}"
+        r = requests.post(
+            f"{base_url}/api/data",
+            json={"pin": pin, "type": "vo2max", "entry": {"date": day, "vo2max": round(float(value), 1)}},
+            timeout=20,
         )
+        print(f"VO2max {value} ({day}) -> {'OK' if r.ok else f'실패({r.status_code}): {r.text[:200]}'}")
         return
 
-    r = requests.post(
-        f"{base_url}/api/data",
-        json={"pin": pin, "type": "vo2max", "entry": {"date": today, "vo2max": round(float(value), 1)}},
-        timeout=20,
-    )
-    print(f"VO2max {value} ({today}) -> {'OK' if r.ok else f'실패({r.status_code}): {r.text[:200]}'}")
+    print(f"최근 {lookback_days}일 안에서 VO2max 값을 찾지 못했습니다 (건너뜀).")
 
 
 def main() -> None:
