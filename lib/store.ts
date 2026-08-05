@@ -13,6 +13,8 @@ export interface Training {
   note?: string;
   /** 사용자가 직접 지정한 강도 — 있으면 페이스 기준 자동 분류 대신 이 값을 쓴다 */
   intensityOverride?: IntensityZone;
+  /** 가민 Connect activityId — 자동 동기화가 같은 활동을 중복 저장하지 않도록 구분하는 키 */
+  garminId?: string;
 }
 
 export interface UpcomingRace {

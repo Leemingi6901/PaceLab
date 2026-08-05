@@ -56,6 +56,7 @@ function buildTraining(e: Record<string, unknown>): Omit<Training, "id"> {
     treadmill: e.treadmill === true || e.treadmill === "true" || e.treadmill === "on",
     note: e.note ? String(e.note) : undefined,
     intensityOverride: intensityOverride(e.intensityOverride),
+    garminId: e.garminId ? String(e.garminId) : undefined,
   };
 }
 
@@ -111,7 +112,10 @@ export async function POST(req: Request) {
       if (!DATE_RE.test(e.date ?? "") || value === undefined || value <= 0) {
         throw new Error("날짜(YYYY-MM-DD)와 VO2max를 확인하세요.");
       }
-      data.vo2max.push({ date: e.date!, vo2max: value });
+      // 같은 날짜 값은 덮어쓴다 (가민 자동 동기화가 하루에 여러 번 같은 날짜를 다시 보낼 수 있음)
+      const existingIdx = data.vo2max.findIndex((v) => v.date === e.date);
+      if (existingIdx >= 0) data.vo2max[existingIdx] = { date: e.date!, vo2max: value };
+      else data.vo2max.push({ date: e.date!, vo2max: value });
       data.vo2max.sort((a, b) => a.date.localeCompare(b.date));
     } else if (type === "profile") {
       const e = entry as { maxHr?: number; restHr?: number };
@@ -123,7 +127,18 @@ export async function POST(req: Request) {
       data.profile = { maxHr, restHr };
     } else if (type === "training") {
       const built = buildTraining(entry);
-      data.trainings.push({ id: crypto.randomUUID(), ...built });
+      // garminId가 있고 이미 저장된 기록이면 새로 추가하지 않고 덮어쓴다 (자동 동기화 중복 방지).
+      // 단, 기존 기록에 사용자가 직접 지정한 강도(intensityOverride)가 있으면 그대로 보존한다.
+      const existingIdx = built.garminId ? data.trainings.findIndex((t) => t.garminId === built.garminId) : -1;
+      if (existingIdx >= 0) {
+        data.trainings[existingIdx] = {
+          ...data.trainings[existingIdx],
+          ...built,
+          intensityOverride: data.trainings[existingIdx].intensityOverride ?? built.intensityOverride,
+        };
+      } else {
+        data.trainings.push({ id: crypto.randomUUID(), ...built });
+      }
       data.trainings.sort((a, b) => a.date.localeCompare(b.date));
     } else if (type === "upcoming") {
       const e = entry as {

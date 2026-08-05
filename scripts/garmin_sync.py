@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""가민 Connect → PaceLab 자동 동기화. GitHub Actions에서 주기적으로 실행된다.
+
+최근 러닝 활동을 PaceLab의 훈련 기록(type=training)으로, 오늘자 VO2max를
+type=vo2max로 /api/data에 올린다. 활동은 가민 activityId를 garminId로 함께
+보내 같은 활동이 여러 번 실행돼도 중복 저장되지 않고 덮어써진다(서버 쪽
+lib/store.ts, app/api/data/route.ts 참고).
+
+로컬 최초 1회는 garmin_login.py로 로그인해 세션 토큰을 만들고, 그 토큰을
+GARMIN_TOKENS_B64 시크릿으로 등록해둬야 이 스크립트가 재로그인 없이 동작한다.
+
+필요 환경변수:
+  GARMIN_TOKENS_B64  - garmin_login.py가 만든 토큰 디렉터리의 tar+base64 값
+  PACELAB_URL        - 예: https://pacelab-korea97.vercel.app
+  ADMIN_PIN          - PaceLab 관리자 인증번호 (POST /api/data 인증용)
+  SYNC_DAYS_BACK     - (선택) 며칠치 활동을 확인할지, 기본 3
+"""
+
+import base64
+import io
+import os
+import sys
+import tarfile
+import tempfile
+from datetime import date, timedelta
+from pathlib import Path
+
+import requests
+from garminconnect import (
+    Garmin,
+    GarminConnectAuthenticationError,
+    GarminConnectConnectionError,
+    GarminConnectTooManyRequestsError,
+)
+
+TOKEN_DIR = Path(os.path.expanduser("~/.garminconnect"))
+CORPORATE_CA = Path(__file__).resolve().parent.parent / "corporate-ca.pem"
+
+
+def setup_corporate_ca() -> None:
+    """사내망 SSL 인터셉션(자체 서명 루트 인증서) 환경이면 curl_cffi/requests가
+    신뢰하도록 등록한다. corporate-ca.pem이 없으면(GitHub Actions 등 일반 네트워크)
+    아무 것도 하지 않는다."""
+    if not CORPORATE_CA.exists():
+        return
+    import certifi
+
+    combined = Path(tempfile.gettempdir()) / "pacelab_combined_ca.pem"
+    combined.write_bytes(Path(certifi.where()).read_bytes() + b"\n" + CORPORATE_CA.read_bytes())
+    for var in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"):
+        os.environ[var] = str(combined)
+    print(f"사내망 SSL 인터셉션 인증서를 신뢰 목록에 추가했습니다 ({CORPORATE_CA.name}).")
+
+
+def restore_tokens() -> None:
+    b64 = os.environ.get("GARMIN_TOKENS_B64")
+    if not b64:
+        print(
+            "GARMIN_TOKENS_B64 환경변수가 없습니다 — 로컬에서 scripts/garmin_login.py를 "
+            "먼저 실행해 시크릿을 등록하세요.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+    data = base64.b64decode(b64)
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+        tar.extractall(TOKEN_DIR)
+
+
+def login() -> Garmin:
+    restore_tokens()
+    api = Garmin()
+    try:
+        api.login(str(TOKEN_DIR))
+    except (GarminConnectAuthenticationError, GarminConnectConnectionError) as e:
+        print(f"저장된 토큰으로 로그인 실패: {e}", file=sys.stderr)
+        print(
+            "토큰이 만료됐을 수 있습니다 — garmin_login.py를 다시 로컬에서 실행해 "
+            "GARMIN_TOKENS_B64 시크릿을 갱신하세요.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except GarminConnectTooManyRequestsError as e:
+        print(f"레이트리밋: {e}", file=sys.stderr)
+        sys.exit(1)
+    return api
+
+
+def fmt_time(seconds: float) -> str:
+    total = round(seconds)
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def sync_activities(api: Garmin, base_url: str, pin: str, days_back: int) -> None:
+    start = (date.today() - timedelta(days=days_back)).isoformat()
+    end = date.today().isoformat()
+    activities = api.get_activities_by_date(start, end) or []
+    running = [a for a in activities if "running" in (a.get("activityType", {}).get("typeKey") or "")]
+    print(f"최근 {days_back}일: 러닝 활동 {len(running)}건 발견")
+
+    for a in running:
+        activity_id = a.get("activityId")
+        distance_m = a.get("distance") or 0
+        duration_s = a.get("duration") or 0
+        if not activity_id or distance_m <= 0 or duration_s <= 0:
+            continue
+        type_key = (a.get("activityType", {}) or {}).get("typeKey", "")
+        date_str = (a.get("startTimeLocal") or "").split(" ")[0].split("T")[0]
+        if not date_str:
+            continue
+
+        entry = {
+            "date": date_str,
+            "distanceKm": round(distance_m / 1000, 3),
+            "time": fmt_time(duration_s),
+            "elevGainM": round(a.get("elevationGain") or 0),
+            "elevLossM": round(a.get("elevationLoss") or 0),
+            "treadmill": "treadmill" in type_key,
+            "garminId": str(activity_id),
+        }
+        if a.get("avgHR"):
+            entry["avgHr"] = round(a["avgHR"])
+        if a.get("activityName"):
+            entry["note"] = f"Garmin: {a['activityName']}"
+
+        r = requests.post(
+            f"{base_url}/api/data",
+            json={"pin": pin, "type": "training", "entry": entry},
+            timeout=20,
+        )
+        status = "OK" if r.ok else f"실패({r.status_code}): {r.text[:200]}"
+        print(f"  {entry['date']} {entry['distanceKm']}km {entry['time']} -> {status}")
+
+
+def sync_vo2max(api: Garmin, base_url: str, pin: str) -> None:
+    today = date.today().isoformat()
+    try:
+        raw = api.get_max_metrics(today)
+    except Exception as e:  # noqa: BLE001 - 이 API는 계정/기기에 따라 자주 예외를 던진다
+        print(f"VO2max 조회 실패(건너뜀): {e}", file=sys.stderr)
+        return
+
+    value = None
+    candidates = raw if isinstance(raw, list) else [raw]
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        generic = item.get("generic") or {}
+        for key in ("vo2MaxPreciseValue", "vo2MaxValue"):
+            value = generic.get(key) or item.get(key)
+            if value:
+                break
+        if value:
+            break
+
+    if not value:
+        print("VO2max 값을 응답에서 찾지 못했습니다 (건너뜀) — 응답 구조가 바뀌었을 수 있습니다.")
+        return
+
+    r = requests.post(
+        f"{base_url}/api/data",
+        json={"pin": pin, "type": "vo2max", "entry": {"date": today, "vo2max": round(float(value), 1)}},
+        timeout=20,
+    )
+    print(f"VO2max {value} ({today}) -> {'OK' if r.ok else f'실패({r.status_code}): {r.text[:200]}'}")
+
+
+def main() -> None:
+    setup_corporate_ca()
+    base_url = os.environ["PACELAB_URL"].rstrip("/")
+    pin = os.environ["ADMIN_PIN"]
+    days_back = int(os.environ.get("SYNC_DAYS_BACK", "3"))
+
+    api = login()
+    sync_activities(api, base_url, pin, days_back)
+    sync_vo2max(api, base_url, pin)
+
+
+if __name__ == "__main__":
+    main()
