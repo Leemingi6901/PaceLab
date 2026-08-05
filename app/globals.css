@@ -741,6 +741,13 @@ em {
   font-size: 0.78rem;
 }
 
+.pl-cal-nav {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
 .pl-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
