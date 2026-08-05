@@ -148,7 +148,7 @@ export default async function Home() {
           <div className="pl-hero-pb" id="prediction">
             <div className="pl-grid">
               {predictions.map((p) => {
-                const pb = personalBest(races, p.distanceKm);
+                const pb = personalBest(races, trainings, p.distanceKm);
                 return (
                   <div key={p.label} className="pl-card pl-pred">
                     <span className="pl-badge">{p.label}</span>
@@ -160,7 +160,8 @@ export default async function Home() {
                     </span>
                     {pb && (
                       <span className="pl-pb-sub">
-                        내 PB {pb.time} · {pb.race} ({pb.date})
+                        내 PB {pb.time} · {pb.source} ({pb.date}
+                        {!pb.isRace ? " · 훈련" : ""})
                       </span>
                     )}
                   </div>

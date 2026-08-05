@@ -223,11 +223,55 @@ export function predictAll(fit: FitnessSummary | null): Prediction[] {
   });
 }
 
-/** 목표 거리(km)와 가장 가까운(±15% 이내) 공식 기록 중 가장 빠른 것을 PB로 반환한다. 없으면 null */
-export function personalBest(races: RaceRecord[], targetKm: number, tolerance = 0.15): RaceRecord | null {
-  const matches = races.filter((r) => Math.abs(r.distanceKm - targetKm) / targetKm <= tolerance);
-  if (matches.length === 0) return null;
-  return matches.reduce((best, r) => (parseTime(r.time) < parseTime(best.time) ? r : best));
+export interface BestEffort {
+  time: string;
+  distanceKm: number;
+  paceSecPerKm: number;
+  source: string;
+  date: string;
+  isRace: boolean;
+}
+
+/**
+ * 목표 거리(km)와 가장 가까운(±15% 이내) 기록 중 가장 빠른 것을 PB로 반환한다. 없으면 null.
+ * 공식 대회 기록뿐 아니라 훈련 기록도 함께 본다 — 훈련 중 우연히 그 거리를 그 대회 기록보다
+ * 빠르게 뛴 적이 있으면 그것도 PB로 인정한다. 거리가 정확히 목표와 같지 않을 수 있어(예: 5.3km
+ * 훈련) 완주 시간이 아니라 페이스로 비교해 거리 차이에 따른 유불리를 없앤다. 트레드밀 기록은
+ * 보정 시간을 쓴다.
+ */
+export function personalBest(
+  races: RaceRecord[],
+  trainings: Training[],
+  targetKm: number,
+  tolerance = 0.15
+): BestEffort | null {
+  const candidates: BestEffort[] = [];
+  for (const r of races) {
+    if (Math.abs(r.distanceKm - targetKm) / targetKm > tolerance) continue;
+    const timeSec = parseTime(r.time);
+    candidates.push({
+      time: r.time,
+      distanceKm: r.distanceKm,
+      paceSecPerKm: timeSec / r.distanceKm,
+      source: r.race,
+      date: r.date,
+      isRace: true,
+    });
+  }
+  for (const t of trainings) {
+    if (Math.abs(t.distanceKm - targetKm) / targetKm > tolerance) continue;
+    const timeSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
+    candidates.push({
+      time: formatTime(timeSec),
+      distanceKm: t.distanceKm,
+      paceSecPerKm: timeSec / t.distanceKm,
+      source: t.note || "훈련 기록",
+      date: t.date,
+      isRace: false,
+    });
+  }
+  if (candidates.length === 0) return null;
+  return candidates.reduce((best, c) => (c.paceSecPerKm < best.paceSecPerKm ? c : best));
 }
 
 export interface SplitPrediction {
