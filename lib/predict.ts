@@ -238,11 +238,17 @@ export interface BestEffort {
  * 빠르게 뛴 적이 있으면 그것도 PB로 인정한다. 거리가 정확히 목표와 같지 않을 수 있어(예: 5.3km
  * 훈련) 완주 시간이 아니라 페이스로 비교해 거리 차이에 따른 유불리를 없앤다. 트레드밀 기록은
  * 보정 시간을 쓴다.
+ *
+ * 훈련 기록은 평균심박이 있으면 "이지" 강도로 판단되는 것은 PB 후보에서 제외한다 — 페이스는
+ * 전력질주 수준인데 심박은 여유심박 72% 미만(가벼운 강도)인 경우, 진짜 그렇게 빨리 뛴 게 아니라
+ * 트레드밀 거리 센서 오류 등으로 거리/시간이 잘못 기록됐을 가능성이 높다고 보기 때문이다.
  */
 export function personalBest(
   races: RaceRecord[],
   trainings: Training[],
   targetKm: number,
+  maxHr?: number,
+  restHr?: number,
   tolerance = 0.15
 ): BestEffort | null {
   const candidates: BestEffort[] = [];
@@ -260,6 +266,7 @@ export function personalBest(
   }
   for (const t of trainings) {
     if (Math.abs(t.distanceKm - targetKm) / targetKm > tolerance) continue;
+    if (t.avgHr && maxHr && classifyIntensityFromHr(t.avgHr, maxHr, restHr) === "이지") continue;
     const timeSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
     candidates.push({
       time: formatTime(timeSec),

@@ -148,7 +148,7 @@ export default async function Home() {
           <div className="pl-hero-pb" id="prediction">
             <div className="pl-grid">
               {predictions.map((p) => {
-                const pb = personalBest(races, trainings, p.distanceKm);
+                const pb = personalBest(races, trainings, p.distanceKm, maxHr, restHr);
                 return (
                   <div key={p.label} className="pl-card pl-pred">
                     <span className="pl-badge">{p.label}</span>
