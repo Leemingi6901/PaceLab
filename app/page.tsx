@@ -7,6 +7,7 @@ import {
   formatTime,
   formatPace,
   personalBest,
+  weightScenarios,
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
 import { buildLoadSeries, summarizeLoad, estimateFitness, CTL_FACTOR_CAP, COMBINED_FACTOR_CAP } from "@/lib/trainingLoad";
@@ -48,6 +49,7 @@ export default async function Home() {
   const maxF = Math.max(...inbody.map((m) => m.bodyFatPct), 1);
   const maxM = Math.max(...inbody.map((m) => m.muscleKg), 1);
   const maxVo2 = Math.max(...vo2max.map((v) => v.vo2max), 1);
+  const weightScenariosList = fit ? weightScenarios(races, inbody, fit.combinedFactor) : [];
 
   const now = Date.now();
   const inLastDays = (dateStr: string, days: number) => now - new Date(dateStr).getTime() < days * 86400000;
@@ -259,6 +261,33 @@ export default async function Home() {
                   </div>
                   <div className="pl-vals">{v.vo2max}</div>
                   <small>{v.date}</small>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {weightScenariosList.length > 0 && (
+          <div className="pl-weight-sim">
+            <h3 className="pl-vo2-title">체중 변화 시뮬레이터 — 마라톤 기록 가정</h3>
+            <p className="pl-weight-sim-note">
+              체지방·근육량의 "적정 비율"을 처방하는 건 아니에요. 지금 이 앱이 예측에 쓰는
+              "대회 당시 체중 대비 최근 체중" 보정(최대 ±5%)을 그대로 가정법으로 계산한
+              것뿐이고, 의학적·영양학적 조언이 아닙니다.
+            </p>
+            <div className="pl-weight-sim-grid">
+              {weightScenariosList.map((s) => (
+                <div key={s.deltaKg} className={`pl-weight-sim-cell ${s.deltaKg === 0 ? "current" : ""}`}>
+                  <span className="pl-weight-sim-kg">
+                    {s.weightKg}kg{s.deltaKg === 0 ? " (현재)" : ""}
+                  </span>
+                  <span className="pl-weight-sim-time">{formatTime(s.marathonSec)}</span>
+                  {s.deltaKg !== 0 && (
+                    <span className={`pl-weight-sim-delta ${s.marathonDeltaSec < 0 ? "faster" : s.marathonDeltaSec > 0 ? "slower" : ""}`}>
+                      {s.marathonDeltaSec === 0
+                        ? "변화 없음"
+                        : `${s.marathonDeltaSec < 0 ? "▼" : "▲"} ${formatTime(Math.abs(s.marathonDeltaSec))}`}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

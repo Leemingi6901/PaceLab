@@ -333,6 +333,64 @@ em {
   margin-bottom: 10px;
 }
 
+.pl-weight-sim {
+  margin-top: 24px;
+}
+
+.pl-weight-sim-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  margin-bottom: 14px;
+  max-width: 640px;
+}
+
+.pl-weight-sim-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 10px;
+}
+
+.pl-weight-sim-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pl-weight-sim-cell.current {
+  border-color: var(--accent);
+  background: rgba(45, 212, 191, 0.06);
+}
+
+.pl-weight-sim-kg {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.pl-weight-sim-time {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.pl-weight-sim-delta {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.pl-weight-sim-delta.faster {
+  color: var(--accent);
+}
+
+.pl-weight-sim-delta.slower {
+  color: var(--accent2);
+}
+
 .pl-inbody-col small {
   color: var(--muted);
   font-size: 0.72rem;

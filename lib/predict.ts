@@ -294,6 +294,43 @@ export function personalBest(
   return candidates.reduce((best, c) => (c.timeSec < best.timeSec ? c : best));
 }
 
+export interface WeightScenario {
+  deltaKg: number;
+  weightKg: number;
+  marathonSec: number;
+  /** 지금(deltaKg=0) 대비 마라톤 예상 기록 차이(초). 음수면 더 빨라짐 */
+  marathonDeltaSec: number;
+}
+
+/**
+ * 체중이 지금보다 ±deltaKg 달라지면 마라톤(42.195km) 예상 기록이 어떻게 바뀌는지 보여준다.
+ * 체지방·근육량의 "적정 비율"을 처방하는 게 아니라, 이 앱이 이미 예측에 쓰고 있는 "대회 당시
+ * 체중 대비 최근 체중" 공식(±5% 캡)을 그대로 가정법으로 계산해 보여줄 뿐이다 — 의학적·영양학적
+ * 조언이 아니다. combinedFactor(훈련량·체성분 추이·VO2max 보정)는 그대로 곱해 다른 조건은
+ * 고정한다.
+ */
+export function weightScenarios(
+  races: RaceRecord[],
+  inbody: InbodyEntry[],
+  combinedFactor: number,
+  deltasKg: number[] = [-3, -2, -1, 0, 1, 2]
+): WeightScenario[] {
+  if (races.length === 0 || inbody.length === 0) return [];
+  const latest = inbody[inbody.length - 1];
+
+  const results = deltasKg.map((deltaKg) => {
+    const weightKg = Math.round((latest.weightKg + deltaKg) * 10) / 10;
+    const hypoInbody = [...inbody.slice(0, -1), { ...latest, weightKg }];
+    const base = currentFitness(races, hypoInbody);
+    const vdot = base ? base.weightAdjustedVdot * combinedFactor : 0;
+    const marathonSec = base ? predictTimeMin(vdot, 42195) * 60 : 0;
+    return { deltaKg, weightKg, marathonSec };
+  });
+
+  const zero = results.find((r) => r.deltaKg === 0) ?? results[0];
+  return results.map((r) => ({ ...r, marathonDeltaSec: r.marathonSec - zero.marathonSec }));
+}
+
 export interface SplitPrediction {
   fromKm: number;
   toKm: number;
