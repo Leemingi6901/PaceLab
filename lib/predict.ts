@@ -225,6 +225,7 @@ export function predictAll(fit: FitnessSummary | null): Prediction[] {
 
 export interface BestEffort {
   time: string;
+  timeSec: number;
   distanceKm: number;
   paceSecPerKm: number;
   source: string;
@@ -233,15 +234,16 @@ export interface BestEffort {
 }
 
 /**
- * 목표 거리(km) "이상"을 실제로 뛴 기록 중 가장 빠른 것을 PB로 반환한다. 없으면 null.
- * 공식 대회 기록뿐 아니라 훈련 기록도 함께 본다 — 훈련 중 우연히 그 거리 이상을 그 대회 기록보다
- * 빠르게 뛴 적이 있으면 그것도 PB로 인정한다.
+ * 목표 거리(km) "이상"을 실제로 뛴 기록 중 완주 시간이 가장 짧은 것을 PB로 반환한다. 없으면 null.
+ * 공식 대회 기록뿐 아니라 훈련 기록도 함께 본다.
  *
  * 짧게 뛴 기록의 페이스를 목표 거리까지 늘려서 "PB"로 치지 않는다 — 실제로 그 거리를 다 뛴 게
  * 아니라면 그 페이스를 끝까지 유지했을지 알 수 없기 때문이다. 그래서 최소 거리는 target×0.97
- * (GPS 오차 정도만 허용)로 엄격하게 잡고, 더 길게 뛴 경우는 target×1.15까지는 그 페이스를
- * "적어도 그만큼은 뛰었다"는 근거로 인정한다(완주 시간이 아니라 페이스로 비교 — 5.3km 훈련처럼
- * 거리가 목표보다 살짝 길 때 유불리가 없도록). 트레드밀 기록은 보정 시간을 쓴다.
+ * (GPS 오차 정도만 허용)로 엄격하게 잡는다. 순위는 페이스가 아니라 실제 완주 시간으로 매긴다 —
+ * 예를 들어 10.0km를 6'55"/km로 뛴 기록과 11.3km를 6'43"/km로 뛴 기록이 있으면, 페이스는
+ * 후자가 더 빠르지만 "10K를 가장 빨리 뛴 시간"은 실제로 더 짧게 걸린 전자다. 더 길게 뛴 기록은
+ * 그만큼 시간도 오래 걸리므로 완주 시간 비교에서 자연히 불리해져 target×1.5까지만 폭넓게 허용해도
+ * 문제되지 않는다. 트레드밀 기록은 보정 시간을 쓴다.
  *
  * 훈련 기록은 평균심박이 있으면 "이지" 강도로 판단되는 것은 PB 후보에서 제외한다 — 페이스는
  * 전력질주 수준인데 심박은 여유심박 72% 미만(가벼운 강도)인 경우, 진짜 그렇게 빨리 뛴 게 아니라
@@ -254,7 +256,7 @@ export function personalBest(
   maxHr?: number,
   restHr?: number,
   undershootTolerance = 0.03,
-  overshootTolerance = 0.15
+  overshootTolerance = 0.5
 ): BestEffort | null {
   const minKm = targetKm * (1 - undershootTolerance);
   const maxKm = targetKm * (1 + overshootTolerance);
@@ -266,6 +268,7 @@ export function personalBest(
     const timeSec = parseTime(r.time);
     candidates.push({
       time: r.time,
+      timeSec,
       distanceKm: r.distanceKm,
       paceSecPerKm: timeSec / r.distanceKm,
       source: r.race,
@@ -279,6 +282,7 @@ export function personalBest(
     const timeSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
     candidates.push({
       time: formatTime(timeSec),
+      timeSec,
       distanceKm: t.distanceKm,
       paceSecPerKm: timeSec / t.distanceKm,
       source: t.note || "훈련 기록",
@@ -287,7 +291,7 @@ export function personalBest(
     });
   }
   if (candidates.length === 0) return null;
-  return candidates.reduce((best, c) => (c.paceSecPerKm < best.paceSecPerKm ? c : best));
+  return candidates.reduce((best, c) => (c.timeSec < best.timeSec ? c : best));
 }
 
 export interface SplitPrediction {
