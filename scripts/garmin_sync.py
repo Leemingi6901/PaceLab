@@ -115,6 +115,13 @@ def fmt_time(seconds: float) -> str:
 
 
 def sync_activities(api: Garmin, base_url: str, pin: str, days_back: int) -> None:
+    try:
+        existing = requests.get(f"{base_url}/api/data", timeout=20).json()
+        race_dates = {r["date"] for r in existing.get("races", [])}
+    except Exception as e:  # noqa: BLE001 - 조회 실패해도 동기화 자체는 계속 진행
+        print(f"기존 대회 기록 조회 실패(레이스데이 중복 방지 건너뜀): {e}", file=sys.stderr)
+        race_dates = set()
+
     start = (date.today() - timedelta(days=days_back)).isoformat()
     end = date.today().isoformat()
     activities = api.get_activities_by_date(start, end) or []
@@ -130,6 +137,9 @@ def sync_activities(api: Garmin, base_url: str, pin: str, days_back: int) -> Non
         type_key = (a.get("activityType", {}) or {}).get("typeKey", "")
         date_str = (a.get("startTimeLocal") or "").split(" ")[0].split("T")[0]
         if not date_str:
+            continue
+        if date_str in race_dates:
+            print(f"  {date_str} -> 건너뜀 (이미 공식 대회 기록으로 등록된 날짜)")
             continue
 
         entry = {
