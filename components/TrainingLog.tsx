@@ -65,6 +65,8 @@ function scoreClass(score: number): string {
   return "score-poor";
 }
 
+const PAGE_SIZE = 4;
+
 export default function TrainingLog({ trainings, predictions, maxHr, restHr }: Props) {
   const router = useRouter();
   const [pin, setPin] = useState("");
@@ -74,6 +76,7 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(0);
 
   function refresh() {
     setRefreshing(true);
@@ -81,7 +84,10 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
     setTimeout(() => setRefreshing(false), 600);
   }
 
-  const recent = [...trainings].reverse().slice(0, 8);
+  const sorted = [...trainings].reverse();
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const recent = sorted.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
   const scores = scoreTrainings(trainings, predictions, maxHr, restHr);
 
   function requirePin(): boolean {
@@ -418,6 +424,29 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="pl-pager">
+          <button
+            type="button"
+            className="pl-icon-btn"
+            disabled={currentPage === 0}
+            onClick={() => setPage(currentPage - 1)}
+          >
+            ← 최근
+          </button>
+          <span className="pl-pager-status">
+            {currentPage + 1} / {totalPages} 페이지 ({sorted.length}건)
+          </span>
+          <button
+            type="button"
+            className="pl-icon-btn"
+            disabled={currentPage >= totalPages - 1}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            이전 →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -579,6 +579,19 @@ em {
   background: rgba(244, 114, 182, 0.1);
 }
 
+.pl-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pl-pager-status {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .pl-zone {
   display: inline-block;
   padding: 2px 9px;
