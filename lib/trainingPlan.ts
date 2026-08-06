@@ -158,13 +158,13 @@ export function buildTrainingPlan(
 
   // 사용자가 특정 달에 목표 마일리지를 입력했으면, 그 달에 속한 주들을 성장 곡선 모양은
   // 유지한 채 스케일링해서 합계가 입력값과 정확히 맞도록 조정한다.
-  // 계획이 시작되는 이번 달은 이미 지나간 날짜만큼 실제 로그된 거리가 있으므로, 그만큼을
+  // 계획이 시작되는 이번 달은 오늘까지 이미 실제로 로그된 거리가 있으므로, 그만큼을
   // 목표에서 빼고 "남은 날짜에 뛰어야 할 양"만 주간 목표에 반영한다.
   const currentMonth = todayStr.slice(0, 7);
   const loggedThisMonth =
     Math.round(
       trainings
-        .filter((t) => t.date.slice(0, 7) === currentMonth && t.date < todayStr)
+        .filter((t) => t.date.slice(0, 7) === currentMonth && t.date <= todayStr)
         .reduce((s, t) => s + t.distanceKm, 0) * 10
     ) / 10;
 
