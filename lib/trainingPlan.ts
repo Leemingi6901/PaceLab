@@ -31,6 +31,8 @@ export interface MonthlyPeriod {
   totalKm: number;
   /** 사용자가 이 달에 입력한 목표 마일리지 (있으면) */
   targetKm?: number;
+  /** 이 달에 이미 실제로 뛴 거리 (진행 중인 이번 달에만 존재) */
+  loggedKm?: number;
 }
 
 export interface TrainingPlanData {
@@ -208,6 +210,7 @@ export function buildTrainingPlan(
       weeks: v.weeks,
       totalKm: v.totalKm,
       targetKm: monthlyTargetKm?.[month],
+      loggedKm: month === currentMonth && loggedThisMonth > 0 ? loggedThisMonth : undefined,
     }));
 
   const totalPlanKm = Math.round(monthlyPeriods.reduce((s, p) => s + p.totalKm, 0) * 10) / 10;

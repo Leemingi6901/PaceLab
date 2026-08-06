@@ -30,6 +30,12 @@ export default function TrainingPlan({ plan }: Props) {
             <span className="pl-phase-km">
               {p.totalKm}km
               {p.targetKm !== undefined && <span className="pl-phase-target"> / 목표 {p.targetKm}km</span>}
+              {p.loggedKm !== undefined && (
+                <span className="pl-phase-target">
+                  {" "}
+                  · {p.loggedKm}km 완료, {Math.max(0, Math.round((p.totalKm - p.loggedKm) * 10) / 10)}km 남음
+                </span>
+              )}
             </span>
           </li>
         ))}
