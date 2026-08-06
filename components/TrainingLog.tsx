@@ -77,11 +77,39 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(0);
+  const [syncingGarmin, setSyncingGarmin] = useState(false);
 
   function refresh() {
     setRefreshing(true);
     router.refresh();
     setTimeout(() => setRefreshing(false), 600);
+  }
+
+  async function syncGarmin() {
+    if (!requirePin()) return;
+    setSyncingGarmin(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/garmin-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setMsg({ kind: "ok", text: "가민 동기화를 요청했습니다 — 20~30초 뒤 자동으로 새로고침됩니다." });
+        setTimeout(() => {
+          router.refresh();
+          setSyncingGarmin(false);
+        }, 25000);
+      } else {
+        setMsg({ kind: "err", text: json.error ?? "동기화 요청에 실패했습니다." });
+        setSyncingGarmin(false);
+      }
+    } catch {
+      setMsg({ kind: "err", text: "네트워크 오류가 발생했습니다." });
+      setSyncingGarmin(false);
+    }
   }
 
   const sorted = [...trainings].reverse();
@@ -198,6 +226,9 @@ export default function TrainingLog({ trainings, predictions, maxHr, restHr }: P
         />
         <button type="button" className="pl-icon-btn" onClick={refresh} disabled={refreshing}>
           {refreshing ? "새로고침 중…" : "↻ 새로고침"}
+        </button>
+        <button type="button" className="pl-icon-btn" onClick={syncGarmin} disabled={syncingGarmin}>
+          {syncingGarmin ? "가민 동기화 중…" : "⌚ 가민 데이터 불러오기"}
         </button>
         {msg && <span className={`pl-msg-inline ${msg.kind}`}>{msg.text}</span>}
       </div>
