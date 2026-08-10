@@ -23,7 +23,7 @@ import os
 import sys
 import tarfile
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -36,6 +36,14 @@ from garminconnect import (
 
 TOKEN_DIR = Path(os.path.expanduser("~/.garminconnect"))
 CORPORATE_CA = Path(__file__).resolve().parent.parent / "corporate-ca.pem"
+KST = timezone(timedelta(hours=9))
+
+
+def today_kst() -> date:
+    """GitHub Actions 러너는 UTC로 동작하지만 가민 활동 날짜는 사용자의 로컬(한국) 날짜
+    기준이라, UTC date.today()를 그대로 쓰면 한국 자정~오전 9시 사이엔 그날 뛴 기록이
+    조회 범위(end) 밖으로 밀려 동기화가 안 되는 문제가 있었다. KST로 고정해서 계산한다."""
+    return datetime.now(KST).date()
 
 
 def setup_corporate_ca() -> None:
@@ -122,8 +130,8 @@ def sync_activities(api: Garmin, base_url: str, pin: str, days_back: int) -> Non
         print(f"기존 대회 기록 조회 실패(레이스데이 중복 방지 건너뜀): {e}", file=sys.stderr)
         race_dates = set()
 
-    start = (date.today() - timedelta(days=days_back)).isoformat()
-    end = date.today().isoformat()
+    start = (today_kst() - timedelta(days=days_back)).isoformat()
+    end = today_kst().isoformat()
     activities = api.get_activities_by_date(start, end) or []
     running = [a for a in activities if "running" in (a.get("activityType", {}).get("typeKey") or "")]
     print(f"최근 {days_back}일: 러닝 활동 {len(running)}건 발견")
@@ -174,7 +182,7 @@ def sync_vo2max(api: Garmin, base_url: str, pin: str, lookback_days: int = 14) -
     # 가민이 매일 VO2max를 새로 계산해주는 건 아니라서(양질의 러닝을 해야 갱신됨),
     # 오늘 값이 비어 있으면 최근 며칠을 거슬러 올라가며 가장 최근에 갱신된 값을 찾는다.
     for days_ago in range(lookback_days):
-        day = (date.today() - timedelta(days=days_ago)).isoformat()
+        day = (today_kst() - timedelta(days=days_ago)).isoformat()
         try:
             raw = api.get_max_metrics(day)
         except Exception as e:  # noqa: BLE001 - 이 API는 계정/기기에 따라 자주 예외를 던진다
