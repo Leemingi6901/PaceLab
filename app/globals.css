@@ -183,6 +183,45 @@ em {
   padding: 96px 24px;
 }
 
+/* 첫 화면 등장 — 히어로 통계 박스·예측 카드가 회전하며 날아들어와 제자리에 멈춘다.
+ * 1회성 CSS 키프레임이라 스크롤과 무관하게 페이지 로드 시 딱 한 번만 재생된다.
+ * fill-mode를 backwards로 둔 이유: forwards/both를 쓰면 애니메이션이 끝난 뒤에도 이 transform이
+ * "animations" 캐스케이드 단계에 계속 남아있어서(스펙상 author 일반 규칙보다 우선순위가 높다),
+ * Tilt3D가 나중에 인라인 style.transform으로 기울이려 해도 안 먹힐 수 있다. backwards는 시작 전
+ * 프레임만 유지하고(그래서 딜레이 동안 안 깜빡인다) 끝나면 깨끗이 손을 뗀다. */
+@keyframes pl-spin-in {
+  0% {
+    opacity: 0;
+    transform: perspective(900px) rotateY(-34deg) rotateX(14deg) scale(0.82);
+  }
+  55% {
+    opacity: 1;
+  }
+  72% {
+    transform: perspective(900px) rotateY(6deg) rotateX(-3deg) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(900px) rotateY(0deg) rotateX(0deg) scale(1);
+  }
+}
+
+.pl-hero .pl-fitness .pl-stat,
+.pl-hero-pb .pl-card {
+  animation: pl-spin-in 0.85s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+
+.pl-hero .pl-fitness .pl-stat:nth-child(1) { animation-delay: 0.05s; }
+.pl-hero .pl-fitness .pl-stat:nth-child(2) { animation-delay: 0.13s; }
+.pl-hero .pl-fitness .pl-stat:nth-child(3) { animation-delay: 0.21s; }
+.pl-hero .pl-fitness .pl-stat:nth-child(4) { animation-delay: 0.29s; }
+.pl-hero .pl-fitness .pl-stat:nth-child(5) { animation-delay: 0.37s; }
+
+.pl-hero-pb .pl-card:nth-child(1) { animation-delay: 0.35s; }
+.pl-hero-pb .pl-card:nth-child(2) { animation-delay: 0.43s; }
+.pl-hero-pb .pl-card:nth-child(3) { animation-delay: 0.51s; }
+.pl-hero-pb .pl-card:nth-child(4) { animation-delay: 0.59s; }
+
 /* 스크롤 리빌 — 뷰포트에 들어오면 뒤로 누워있던 판이 3D로 일어서듯 세워진다 */
 .pl-reveal {
   opacity: 0;
@@ -208,6 +247,11 @@ em {
   .pl-plan-phases li,
   .pl-cal-cell {
     transition: none;
+  }
+  .pl-hero .pl-fitness .pl-stat,
+  .pl-hero-pb .pl-card {
+    animation: none;
+    opacity: 1;
   }
 }
 
