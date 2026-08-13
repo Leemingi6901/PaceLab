@@ -149,9 +149,9 @@ export const UNCERTAINTY_CAP = 0.12; // 최대 ±12%
  * - 체중 보정: 상대 VO2max는 체중에 반비례 → vdot × (기록 당시 체중 / 현재 체중), ±5% 캡
  * - 대회 기록 간 VDOT 편차(가중 변동계수)로 예상 기록의 불확실성 범위도 함께 계산
  */
-export function currentFitness(races: RaceRecord[], inbody: InbodyEntry[]): FitnessSummary | null {
+export function currentFitness(races: RaceRecord[], inbody: InbodyEntry[], asOfMs: number = Date.now()): FitnessSummary | null {
   if (races.length === 0) return null;
-  const now = Date.now();
+  const now = asOfMs;
   let wSum = 0;
   let vSum = 0;
   let vSqSum = 0;

@@ -13,6 +13,7 @@ import {
   gradeAdjustedPace,
   parseTime,
   predictAll,
+  predictTimeMin,
   resolveIntensity,
   zonePaceBand,
   type FitnessSummary,
@@ -152,11 +153,11 @@ const BODY_COMP_FACTOR_CAP = 0.05;
  * (체중 보정만으로는 못 잡는 부분) 체지방 1%p 감소 ≈ +0.6%, 골격근 1kg 증가 ≈ +0.5%로
  * 근사하고(체성분 변화와 러닝 퍼포먼스 간 경험적 근사치), 합산 후 ±5%로 캡을 씌운다.
  */
-export function bodyCompTrendFactor(inbody: InbodyEntry[]): number {
+export function bodyCompTrendFactor(inbody: InbodyEntry[], asOfMs: number = Date.now()): number {
   if (inbody.length < 2) return 1;
   const sorted = [...inbody].sort((a, b) => a.date.localeCompare(b.date));
   const latest = sorted[sorted.length - 1];
-  const cutoff = Date.now() - BODY_COMP_LOOKBACK_DAYS * 86400000;
+  const cutoff = asOfMs - BODY_COMP_LOOKBACK_DAYS * 86400000;
 
   let base = sorted[0];
   for (const m of sorted) {
@@ -179,11 +180,11 @@ const VO2MAX_FACTOR_CAP = 0.04;
  * 가능성이 높다고 보고 반영한다. VO2max 변화율을 그대로 곱하되(측정치라 신뢰도가
  * 비교적 높음), ±4%로 캡을 씌운다. 기록된 값이 2개 미만이면 보정하지 않는다.
  */
-export function vo2maxTrendFactor(entries: Vo2maxEntry[]): number {
+export function vo2maxTrendFactor(entries: Vo2maxEntry[], asOfMs: number = Date.now()): number {
   if (entries.length < 2) return 1;
   const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
   const latest = sorted[sorted.length - 1];
-  const cutoff = Date.now() - BODY_COMP_LOOKBACK_DAYS * 86400000;
+  const cutoff = asOfMs - BODY_COMP_LOOKBACK_DAYS * 86400000;
 
   let base = sorted[0];
   for (const m of sorted) {
@@ -217,14 +218,15 @@ export function estimateFitness(
   races: RaceRecord[],
   inbody: InbodyEntry[],
   loadSeries: LoadPoint[],
-  vo2max: Vo2maxEntry[] = []
+  vo2max: Vo2maxEntry[] = [],
+  asOfMs: number = Date.now()
 ): EstimatedFitness | null {
-  const base = currentFitness(races, inbody);
+  const base = currentFitness(races, inbody, asOfMs);
   if (!base) return null;
 
   const ctlFactor = ctlTrendFactor(loadSeries);
-  const bodyCompFactor = bodyCompTrendFactor(inbody);
-  const vo2maxFactor = vo2maxTrendFactor(vo2max);
+  const bodyCompFactor = bodyCompTrendFactor(inbody, asOfMs);
+  const vo2maxFactor = vo2maxTrendFactor(vo2max, asOfMs);
   const rawCombined = ctlFactor * bodyCompFactor * vo2maxFactor;
   const combinedFactor = Math.max(1 - COMBINED_FACTOR_CAP, Math.min(1 + COMBINED_FACTOR_CAP, rawCombined));
 
@@ -318,4 +320,98 @@ export function scoreTrainings(
     if (s) map.set(t.id, s);
   }
   return map;
+}
+
+export interface FitnessHistoryPoint {
+  date: string;
+  weightAdjustedVdot: number;
+  /** 전날 대비 눈에 띄는 변화가 있었다면 그 이유. 없으면 빈 배열 */
+  reasons: string[];
+}
+
+const HISTORY_CHANGE_THRESHOLD = 0.0008; // 이 이상 vdot 비율이 바뀌면 "훈련 부하 추이" 사유를 붙인다
+
+/**
+ * 첫 공식 대회 기록일부터 오늘까지, 하루 단위로 "그날까지의 데이터만 알았다면" 추정했을
+ * 체력(weightAdjustedVdot)을 재구성한다. estimateFitness가 이미 age-weighting(레이스는
+ * 최근일수록 가중치가 크고 180일 반감기로 서서히 줄어듦)과 90일 추이 보정을 쓰고 있어서,
+ * asOfMs를 그날로 고정하고 그날짜 이전 데이터만 넘기면 "그날의 예측"이 자연스럽게 나온다.
+ * 매일 재계산하는 대신 CTL/ATL 시리즈는 한 번만 구하고 날짜별로 잘라 쓴다(과거 값은
+ * 미래 데이터가 추가돼도 바뀌지 않으므로 안전하다).
+ */
+export function buildFitnessHistory(
+  races: RaceRecord[],
+  inbody: InbodyEntry[],
+  trainings: Training[],
+  vo2max: Vo2maxEntry[]
+): FitnessHistoryPoint[] {
+  if (races.length === 0) return [];
+
+  const sortedRaces = [...races].sort((a, b) => a.date.localeCompare(b.date));
+  const sortedInbody = [...inbody].sort((a, b) => a.date.localeCompare(b.date));
+  const sortedVo2 = [...vo2max].sort((a, b) => a.date.localeCompare(b.date));
+  const fullLoadSeries = buildLoadSeries(races, inbody, trainings);
+
+  const todayStr = dateOnly(new Date());
+  let cursor = sortedRaces[0].date;
+
+  const points: FitnessHistoryPoint[] = [];
+  let prevVdot: number | null = null;
+
+  while (cursor <= todayStr) {
+    const asOfMs = new Date(cursor + "T23:59:59Z").getTime();
+    const racesUpTo = sortedRaces.filter((r) => r.date <= cursor);
+    const inbodyUpTo = sortedInbody.filter((m) => m.date <= cursor);
+    const vo2UpTo = sortedVo2.filter((v) => v.date <= cursor);
+    const loadUpTo = fullLoadSeries.filter((p) => p.date <= cursor);
+
+    const fit = estimateFitness(racesUpTo, inbodyUpTo, loadUpTo, vo2UpTo, asOfMs);
+    if (fit) {
+      const vdot = fit.weightAdjustedVdot;
+      const reasons: string[] = [];
+
+      const newRace = sortedRaces.find((r) => r.date === cursor);
+      if (newRace) reasons.push(`새 대회 기록 추가: ${newRace.race} — ${newRace.time}`);
+
+      const newInbody = sortedInbody.find((m) => m.date === cursor);
+      if (newInbody) {
+        reasons.push(`인바디 갱신: 체중 ${newInbody.weightKg}kg · 체지방 ${newInbody.bodyFatPct}% · 골격근 ${newInbody.muscleKg}kg`);
+      }
+
+      const newVo2 = sortedVo2.find((v) => v.date === cursor);
+      if (newVo2) reasons.push(`VO2max ${newVo2.vo2max} 갱신`);
+
+      if (reasons.length === 0 && prevVdot !== null && prevVdot > 0) {
+        const deltaPct = vdot / prevVdot - 1;
+        if (Math.abs(deltaPct) > HISTORY_CHANGE_THRESHOLD) {
+          reasons.push(
+            deltaPct > 0
+              ? "최근 훈련 부하 추이가 좋아져 체력 보정치가 소폭 올랐습니다."
+              : "최근 훈련 공백·부하 감소로 체력 보정치가 소폭 내려갔습니다."
+          );
+        }
+      }
+
+      points.push({ date: cursor, weightAdjustedVdot: vdot, reasons });
+      prevVdot = vdot;
+    }
+    cursor = addDays(cursor, 1);
+  }
+
+  return points;
+}
+
+export interface PredictionHistoryPoint {
+  date: string;
+  timeSec: number;
+  reasons: string[];
+}
+
+/** buildFitnessHistory 결과를 특정 거리의 예상 기록(초) 시계열로 변환한다 */
+export function predictionHistoryForDistance(history: FitnessHistoryPoint[], distanceKm: number): PredictionHistoryPoint[] {
+  return history.map((p) => ({
+    date: p.date,
+    timeSec: predictTimeMin(p.weightAdjustedVdot, distanceKm * 1000) * 60,
+    reasons: p.reasons,
+  }));
 }

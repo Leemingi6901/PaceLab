@@ -6,6 +6,8 @@ next-env.d.ts
 .env.*
 .DS_Store
 *.log
+.claude/
+tsconfig.tsbuildinfo
 
 # 실제 개인 건강 데이터는 커밋 금지 — data/*.json은 공개 저장소에 올라갑니다
 # 민감한 원본 데이터는 private/ 폴더에 두세요

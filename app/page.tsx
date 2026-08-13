@@ -10,13 +10,21 @@ import {
   weightScenarios,
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
-import { buildLoadSeries, summarizeLoad, estimateFitness, CTL_FACTOR_CAP, COMBINED_FACTOR_CAP } from "@/lib/trainingLoad";
+import {
+  buildLoadSeries,
+  summarizeLoad,
+  estimateFitness,
+  buildFitnessHistory,
+  CTL_FACTOR_CAP,
+  COMBINED_FACTOR_CAP,
+} from "@/lib/trainingLoad";
 import { buildTrainingPlan } from "@/lib/trainingPlan";
 import TrainingLog from "@/components/TrainingLog";
 import MonthlyMileage from "@/components/MonthlyMileage";
 import TrainingLoad from "@/components/TrainingLoad";
 import CourseElevation from "@/components/CourseElevation";
 import TrainingPlan from "@/components/TrainingPlan";
+import PredictionHistoryChart from "@/components/PredictionHistoryChart";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +39,7 @@ export default async function Home() {
   const loadSeries = buildLoadSeries(races, inbody, trainings);
   const loadSummary = summarizeLoad(loadSeries);
   const fit = estimateFitness(races, inbody, loadSeries, vo2max);
+  const fitnessHistory = buildFitnessHistory(races, inbody, trainings, vo2max);
   const predictions = predictAll(fit);
   const course = upcoming ? predictCourseSplits(fit, upcoming) : null;
   const plan = upcoming
@@ -69,6 +78,7 @@ export default async function Home() {
         <nav>
           <a href="#prediction">Prediction</a>
           <a href="#records">Records</a>
+          <a href="#predhistory">History</a>
           <a href="#condition">Condition</a>
           <a href="#training">Training</a>
           <a href="#mileage">Mileage</a>
@@ -204,9 +214,26 @@ export default async function Home() {
         )}
       </section>
 
-      {/* 02 인바디 */}
+      {/* 02 예측 변동 히스토리 */}
+      <section className="pl-section" id="predhistory">
+        <span className="pl-eyebrow">02 — PREDICTION HISTORY</span>
+        <h2>
+          일별 예측 <em>변동 추이</em>
+        </h2>
+        <p className="pl-section-desc">
+          그날까지 쌓인 데이터만으로 다시 계산한 "그날의 예측"을 이어붙인 그래프입니다. 거리별로 탭을
+          바꿔볼 수 있고, 변화가 있었던 지점에 마우스를 올리면 원인이 표시됩니다.
+        </p>
+        {fitnessHistory.length < 2 ? (
+          <EmptyNote>데이터가 더 쌓이면 예측 변동 추이가 여기 표시됩니다.</EmptyNote>
+        ) : (
+          <PredictionHistoryChart history={fitnessHistory} />
+        )}
+      </section>
+
+      {/* 03 인바디 */}
       <section className="pl-section" id="condition">
-        <span className="pl-eyebrow">02 — BODY CONDITION</span>
+        <span className="pl-eyebrow">03 — BODY CONDITION</span>
         <h2>
           인바디 <em>추이</em>
         </h2>
@@ -297,7 +324,7 @@ export default async function Home() {
 
       {/* 03 훈련 로그 */}
       <section className="pl-section" id="training">
-        <span className="pl-eyebrow">03 — TRAINING LOG</span>
+        <span className="pl-eyebrow">04 — TRAINING LOG</span>
         <h2>
           러닝 <em>훈련 기록</em>
         </h2>
@@ -312,7 +339,7 @@ export default async function Home() {
 
       {/* 04 월간 마일리지 */}
       <section className="pl-section" id="mileage">
-        <span className="pl-eyebrow">04 — MONTHLY MILEAGE</span>
+        <span className="pl-eyebrow">05 — MONTHLY MILEAGE</span>
         <h2>
           이번 달 <em>러닝 마일리지</em>
         </h2>
@@ -322,7 +349,7 @@ export default async function Home() {
 
       {/* 05 훈련 부하 */}
       <section className="pl-section" id="load">
-        <span className="pl-eyebrow">05 — TRAINING LOAD</span>
+        <span className="pl-eyebrow">06 — TRAINING LOAD</span>
         <h2>
           훈련 부하 <em>&amp; 컨디션</em>
         </h2>
@@ -339,7 +366,7 @@ export default async function Home() {
 
       {/* 06 다음 훈련 추천 */}
       <section className="pl-section" id="nextworkout">
-        <span className="pl-eyebrow">06 — NEXT WORKOUT</span>
+        <span className="pl-eyebrow">07 — NEXT WORKOUT</span>
         <h2>
           다음 훈련 <em>추천</em>
         </h2>
@@ -386,7 +413,7 @@ export default async function Home() {
 
       {/* 07 주기화 훈련 계획 */}
       <section className="pl-section" id="plan">
-        <span className="pl-eyebrow">07 — TRAINING PLAN</span>
+        <span className="pl-eyebrow">08 — TRAINING PLAN</span>
         <h2>
           대회까지 <em>주기화 훈련 계획</em>
         </h2>
@@ -408,7 +435,7 @@ export default async function Home() {
 
       {/* 08 다음 대회 */}
       <section className="pl-section" id="nextrace">
-        <span className="pl-eyebrow">08 — NEXT RACE</span>
+        <span className="pl-eyebrow">09 — NEXT RACE</span>
         <h2>
           다음 대회 <em>구간 전략</em>
         </h2>
