@@ -294,6 +294,58 @@ export function personalBest(
   return candidates.reduce((best, c) => (c.timeSec < best.timeSec ? c : best));
 }
 
+/** 훈련 기록에서 뽑아 VDOT 계산에 넣은 항목임을 표시하는 마커 (RaceRecord.note에 붙인다) */
+export const TRAINING_EFFORT_NOTE = "training-effort";
+
+/**
+ * 공식 대회가 아니어도 5K/10K/하프/풀코스 각 구간에서 "내 최고 기록"이 훈련으로 나왔다면
+ * 그것도 체력 추정(VDOT)에 반영한다 — 안 그러면 대회를 자주 안 뛰는 동안 훈련으로 실력이
+ * 늘어도(예: 이번 주 5K PB 경신) 예측이 못 따라간다.
+ *
+ * "레이스급"인지 판단할 때 평균심박에 고정 임계값(예: 여유심박 86%)을 쓰면 종목별 페이스 특성과
+ * 안 맞는다 — 27분짜리 5K 전력질주는 시작 1~2분의 워밍업 구간 때문에 평균심박이 인터벌 반복
+ * 구간보다 자연히 낮게 나온다(이 값들 기준으로는 여유심박 84% 안팎에서 "보통"으로 분류돼
+ * 아예 걸러졌었다). 그래서 대신 personalBest()가 이미 구간별로 골라둔 "그 거리 최고 기록"을
+ * 그대로 쓴다 — 트레드밀 센서 오류로 의심되는 기록(이지 강도인데 페이스만 빠른 경우) 배제
+ * 로직도 이미 거기 있다. 그 최고 기록이 공식 대회면 이미 races에 있으니 건너뛴다.
+ */
+export function trainingRaceBests(
+  races: RaceRecord[],
+  trainings: Training[],
+  inbody: InbodyEntry[],
+  maxHr?: number,
+  restHr?: number
+): RaceRecord[] {
+  const sortedInbody = [...inbody].sort((a, b) => a.date.localeCompare(b.date));
+  // 훈련 기록엔 체중이 안 붙어 있으니, 그 날짜 시점에 가장 가까운(이전) 인바디 체중으로 근사한다 —
+  // 없으면(그 훈련이 첫 인바디 측정보다 앞선 경우) 가장 오래된 기록값으로 대체한다. 이 근사치가
+  // 없으면 currentFitness()의 체중 보정 기준(baseWeight)이 항상 latestWeight로 무너져 버려서
+  // 체중 시뮬레이터 등 체중 보정 자체가 무력화된다.
+  const weightNear = (dateStr: string): number | undefined => {
+    let w: number | undefined;
+    for (const m of sortedInbody) {
+      if (m.date <= dateStr) w = m.weightKg;
+      else break;
+    }
+    return w ?? sortedInbody[0]?.weightKg;
+  };
+
+  const results: RaceRecord[] = [];
+  for (const t of TARGETS) {
+    const best = personalBest(races, trainings, t.km, maxHr, restHr);
+    if (!best || best.isRace) continue;
+    results.push({
+      race: best.source,
+      date: best.date,
+      distanceKm: best.distanceKm,
+      time: best.time,
+      weightKg: weightNear(best.date),
+      note: TRAINING_EFFORT_NOTE,
+    });
+  }
+  return results;
+}
+
 export interface WeightScenario {
   deltaKg: number;
   weightKg: number;

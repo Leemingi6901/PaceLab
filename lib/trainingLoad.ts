@@ -15,6 +15,8 @@ import {
   predictAll,
   predictTimeMin,
   resolveIntensity,
+  trainingRaceBests,
+  TRAINING_EFFORT_NOTE,
   zonePaceBand,
   type FitnessSummary,
   type InbodyEntry,
@@ -332,22 +334,29 @@ export interface FitnessHistoryPoint {
 const HISTORY_CHANGE_THRESHOLD = 0.0008; // 이 이상 vdot 비율이 바뀌면 "훈련 부하 추이" 사유를 붙인다
 
 /**
- * 첫 공식 대회 기록일부터 오늘까지, 하루 단위로 "그날까지의 데이터만 알았다면" 추정했을
- * 체력(weightAdjustedVdot)을 재구성한다. estimateFitness가 이미 age-weighting(레이스는
- * 최근일수록 가중치가 크고 180일 반감기로 서서히 줄어듦)과 90일 추이 보정을 쓰고 있어서,
- * asOfMs를 그날로 고정하고 그날짜 이전 데이터만 넘기면 "그날의 예측"이 자연스럽게 나온다.
- * 매일 재계산하는 대신 CTL/ATL 시리즈는 한 번만 구하고 날짜별로 잘라 쓴다(과거 값은
- * 미래 데이터가 추가돼도 바뀌지 않으므로 안전하다).
+ * 첫 공식 대회 기록(또는 레이스급 훈련 기록)일부터 오늘까지, 하루 단위로 "그날까지의 데이터만
+ * 알았다면" 추정했을 체력(weightAdjustedVdot)을 재구성한다. estimateFitness가 이미
+ * age-weighting(레이스는 최근일수록 가중치가 크고 180일 반감기로 서서히 줄어듦)과 90일 추이
+ * 보정을 쓰고 있어서, asOfMs를 그날로 고정하고 그날짜 이전 데이터만 넘기면 "그날의 예측"이
+ * 자연스럽게 나온다. 매일 재계산하는 대신 CTL/ATL 시리즈는 한 번만 구하고 날짜별로 잘라
+ * 쓴다(과거 값은 미래 데이터가 추가돼도 바뀌지 않으므로 안전하다).
+ *
+ * 훈련 부하(CTL/ATL) 계산에는 원본 races만 넘긴다 — trainingRaceBests로 뽑은 항목은
+ * 이미 trainings 안에 있는 세션과 같은 날짜라, races에도 같이 넣으면 그날 부하가 두 번
+ * 잡힌다(훈련 세션 + "레이스" 세션 이중 계산).
  */
 export function buildFitnessHistory(
   races: RaceRecord[],
   inbody: InbodyEntry[],
   trainings: Training[],
-  vo2max: Vo2maxEntry[]
+  vo2max: Vo2maxEntry[],
+  maxHr?: number,
+  restHr?: number
 ): FitnessHistoryPoint[] {
-  if (races.length === 0) return [];
+  const efforts = [...races, ...trainingRaceBests(races, trainings, inbody, maxHr, restHr)];
+  if (efforts.length === 0) return [];
 
-  const sortedRaces = [...races].sort((a, b) => a.date.localeCompare(b.date));
+  const sortedRaces = [...efforts].sort((a, b) => a.date.localeCompare(b.date));
   const sortedInbody = [...inbody].sort((a, b) => a.date.localeCompare(b.date));
   const sortedVo2 = [...vo2max].sort((a, b) => a.date.localeCompare(b.date));
   const fullLoadSeries = buildLoadSeries(races, inbody, trainings);
@@ -371,7 +380,13 @@ export function buildFitnessHistory(
       const reasons: string[] = [];
 
       const newRace = sortedRaces.find((r) => r.date === cursor);
-      if (newRace) reasons.push(`새 대회 기록 추가: ${newRace.race} — ${newRace.time}`);
+      if (newRace) {
+        reasons.push(
+          newRace.note === TRAINING_EFFORT_NOTE
+            ? `레이스급 훈련 기록 반영: ${newRace.race} — ${newRace.time}`
+            : `새 대회 기록 추가: ${newRace.race} — ${newRace.time}`
+        );
+      }
 
       const newInbody = sortedInbody.find((m) => m.date === cursor);
       if (newInbody) {

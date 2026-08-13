@@ -7,6 +7,8 @@ import {
   formatTime,
   formatPace,
   personalBest,
+  TRAINING_EFFORT_NOTE,
+  trainingRaceBests,
   weightScenarios,
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
@@ -36,17 +38,21 @@ export default async function Home() {
   const data = await getData();
   const { races, inbody, vo2max, trainings, upcoming, profile } = data;
 
+  const maxHr = profile.maxHr ?? (Math.max(0, ...races.map((r) => r.maxHr ?? 0)) || undefined);
+  const restHr = profile.restHr;
+  // 5K/10K/하프/풀코스 구간별 "내 최고 기록"이 훈련에서 나왔다면 그것도 체력 추정(VDOT)에
+  // 반영한다 — 공식 대회를 자주 안 뛰는 동안 훈련으로 실력이 늘어도 예측이 못 따라가지 않도록.
+  const efforts = [...races, ...trainingRaceBests(races, trainings, inbody, maxHr, restHr)];
+
   const loadSeries = buildLoadSeries(races, inbody, trainings);
   const loadSummary = summarizeLoad(loadSeries);
-  const fit = estimateFitness(races, inbody, loadSeries, vo2max);
-  const fitnessHistory = buildFitnessHistory(races, inbody, trainings, vo2max);
+  const fit = estimateFitness(efforts, inbody, loadSeries, vo2max);
+  const fitnessHistory = buildFitnessHistory(races, inbody, trainings, vo2max, maxHr, restHr);
   const predictions = predictAll(fit);
   const course = upcoming ? predictCourseSplits(fit, upcoming) : null;
   const plan = upcoming
     ? buildTrainingPlan(upcoming.date, upcoming.distanceKm, trainings, upcoming.monthlyTargetKm)
     : null;
-  const maxHr = profile.maxHr ?? (Math.max(0, ...races.map((r) => r.maxHr ?? 0)) || undefined);
-  const restHr = profile.restHr;
   const workouts = recommendWorkouts(trainings, predictions, loadSummary?.tsb, maxHr, restHr);
   const tier = fit ? getRunnerTier(fit.weightAdjustedVdot) : null;
   const latestInbody = inbody[inbody.length - 1];
@@ -58,7 +64,7 @@ export default async function Home() {
   const maxF = Math.max(...inbody.map((m) => m.bodyFatPct), 1);
   const maxM = Math.max(...inbody.map((m) => m.muscleKg), 1);
   const maxVo2 = Math.max(...vo2max.map((v) => v.vo2max), 1);
-  const weightScenariosList = fit ? weightScenarios(races, inbody, fit.combinedFactor) : [];
+  const weightScenariosList = fit ? weightScenarios(efforts, inbody, fit.combinedFactor) : [];
 
   const now = Date.now();
   const inLastDays = (dateStr: string, days: number) => now - new Date(dateStr).getTime() < days * 86400000;
@@ -125,7 +131,10 @@ export default async function Home() {
               <div className="pl-stat">
                 <small>기준 최고 기록</small>
                 <b>{fit.baseRace.time}</b>
-                <small>{fit.baseRace.race}</small>
+                <small>
+                  {fit.baseRace.race}
+                  {fit.baseRace.note === TRAINING_EFFORT_NOTE ? " · 훈련" : ""}
+                </small>
               </div>
               <div className="pl-stat">
                 <small>현재 체중</small>
