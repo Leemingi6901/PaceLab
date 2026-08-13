@@ -192,23 +192,23 @@ em {
 @keyframes pl-spin-in {
   0% {
     opacity: 0;
-    transform: perspective(900px) rotateY(-34deg) rotateX(14deg) scale(0.82);
+    transform: perspective(600px) rotateY(-130deg) rotateX(30deg) scale(0.5);
   }
-  55% {
+  40% {
     opacity: 1;
   }
-  72% {
-    transform: perspective(900px) rotateY(6deg) rotateX(-3deg) scale(1.03);
+  62% {
+    transform: perspective(600px) rotateY(18deg) rotateX(-8deg) scale(1.08);
   }
   100% {
     opacity: 1;
-    transform: perspective(900px) rotateY(0deg) rotateX(0deg) scale(1);
+    transform: perspective(600px) rotateY(0deg) rotateX(0deg) scale(1);
   }
 }
 
 .pl-hero .pl-fitness .pl-stat,
 .pl-hero-pb .pl-card {
-  animation: pl-spin-in 0.85s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+  animation: pl-spin-in 1.05s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
 }
 
 .pl-hero .pl-fitness .pl-stat:nth-child(1) { animation-delay: 0.05s; }
