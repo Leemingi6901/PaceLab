@@ -27,6 +27,7 @@ import TrainingLoad from "@/components/TrainingLoad";
 import CourseElevation from "@/components/CourseElevation";
 import TrainingPlan from "@/components/TrainingPlan";
 import PredictionHistoryChart from "@/components/PredictionHistoryChart";
+import Reveal from "@/components/Reveal";
 
 export const dynamic = "force-dynamic";
 
@@ -195,6 +196,7 @@ export default async function Home() {
       </section>
 
       {/* 01 공식 기록 */}
+      <Reveal>
       <section className="pl-section" id="records">
         <span className="pl-eyebrow">01 — OFFICIAL RECORDS</span>
         <h2>
@@ -222,8 +224,10 @@ export default async function Home() {
           </div>
         )}
       </section>
+      </Reveal>
 
       {/* 02 예측 변동 히스토리 */}
+      <Reveal>
       <section className="pl-section" id="predhistory">
         <span className="pl-eyebrow">02 — PREDICTION HISTORY</span>
         <h2>
@@ -239,8 +243,10 @@ export default async function Home() {
           <PredictionHistoryChart history={fitnessHistory} />
         )}
       </section>
+      </Reveal>
 
       {/* 03 인바디 */}
+      <Reveal>
       <section className="pl-section" id="condition">
         <span className="pl-eyebrow">03 — BODY CONDITION</span>
         <h2>
@@ -330,8 +336,10 @@ export default async function Home() {
           </div>
         )}
       </section>
+      </Reveal>
 
       {/* 03 훈련 로그 */}
+      <Reveal>
       <section className="pl-section" id="training">
         <span className="pl-eyebrow">04 — TRAINING LOG</span>
         <h2>
@@ -345,8 +353,10 @@ export default async function Home() {
         </p>
         <TrainingLog trainings={trainings} predictions={predictions} maxHr={maxHr} restHr={restHr} />
       </section>
+      </Reveal>
 
       {/* 04 월간 마일리지 */}
+      <Reveal>
       <section className="pl-section" id="mileage">
         <span className="pl-eyebrow">05 — MONTHLY MILEAGE</span>
         <h2>
@@ -355,8 +365,10 @@ export default async function Home() {
         <p className="pl-section-desc">대회와 훈련 기록을 날짜 기준으로 합산합니다. 대회일은 점으로 표시됩니다.</p>
         <MonthlyMileage races={races} trainings={trainings} />
       </section>
+      </Reveal>
 
       {/* 05 훈련 부하 */}
+      <Reveal>
       <section className="pl-section" id="load">
         <span className="pl-eyebrow">06 — TRAINING LOAD</span>
         <h2>
@@ -372,8 +384,10 @@ export default async function Home() {
           <TrainingLoad summary={loadSummary} />
         )}
       </section>
+      </Reveal>
 
       {/* 06 다음 훈련 추천 */}
+      <Reveal>
       <section className="pl-section" id="nextworkout">
         <span className="pl-eyebrow">07 — NEXT WORKOUT</span>
         <h2>
@@ -419,8 +433,10 @@ export default async function Home() {
           </div>
         )}
       </section>
+      </Reveal>
 
       {/* 07 주기화 훈련 계획 */}
+      <Reveal>
       <section className="pl-section" id="plan">
         <span className="pl-eyebrow">08 — TRAINING PLAN</span>
         <h2>
@@ -441,8 +457,10 @@ export default async function Home() {
           <TrainingPlan plan={plan} />
         )}
       </section>
+      </Reveal>
 
       {/* 08 다음 대회 */}
+      <Reveal>
       <section className="pl-section" id="nextrace">
         <span className="pl-eyebrow">09 — NEXT RACE</span>
         <h2>
@@ -511,6 +529,7 @@ export default async function Home() {
           </>
         )}
       </section>
+      </Reveal>
 
       <footer className="pl-footer">
         © 2026 PaceLab — Daniel의 마라톤 훈련 분석 랩 · <a href="/admin">데이터 입력</a>

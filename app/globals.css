@@ -133,6 +133,13 @@ em {
   border-radius: 16px;
   padding: 18px 28px;
   min-width: 150px;
+  transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+}
+
+.pl-stat:hover {
+  border-color: rgba(45, 212, 191, 0.55);
+  transform: translateY(-4px);
+  box-shadow: 0 14px 40px rgba(45, 212, 191, 0.1);
 }
 
 .pl-stat b {
@@ -174,6 +181,33 @@ em {
   max-width: 1040px;
   margin: 0 auto;
   padding: 96px 24px;
+}
+
+/* 스크롤 리빌 — 뷰포트에 들어오면 fade + slide-up */
+.pl-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+.pl-reveal.pl-reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .pl-card,
+  .pl-stat,
+  .pl-weight-sim-cell,
+  .pl-plan-phases li,
+  .pl-cal-cell {
+    transition: none;
+  }
 }
 
 .pl-eyebrow {
@@ -360,6 +394,13 @@ em {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+}
+
+.pl-weight-sim-cell:hover {
+  border-color: rgba(45, 212, 191, 0.55);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(45, 212, 191, 0.1);
 }
 
 .pl-weight-sim-cell.current {
@@ -856,6 +897,12 @@ em {
   align-items: center;
   justify-content: center;
   gap: 2px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.pl-cal-cell.active:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 8px 20px rgba(45, 212, 191, 0.15);
 }
 
 .pl-cal-cell.empty {
@@ -1371,6 +1418,13 @@ em {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+}
+
+.pl-plan-phases li:hover {
+  border-color: rgba(45, 212, 191, 0.55);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(45, 212, 191, 0.08);
 }
 
 .pl-phase-range {
