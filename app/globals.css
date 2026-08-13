@@ -183,16 +183,17 @@ em {
   padding: 96px 24px;
 }
 
-/* 스크롤 리빌 — 뷰포트에 들어오면 fade + slide-up */
+/* 스크롤 리빌 — 뷰포트에 들어오면 뒤로 누워있던 판이 3D로 일어서듯 세워진다 */
 .pl-reveal {
   opacity: 0;
-  transform: translateY(28px);
-  transition: opacity 0.7s ease, transform 0.7s ease;
+  transform: perspective(1200px) rotateX(9deg) translateY(30px) scale(0.985);
+  transform-origin: 50% 100%;
+  transition: opacity 0.75s ease, transform 0.75s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .pl-reveal.pl-reveal-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: perspective(1200px) rotateX(0deg) translateY(0) scale(1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1598,4 +1599,26 @@ em {
   content: "↑";
   color: var(--accent);
   font-weight: 800;
+}
+
+/* ── 3D 틸트 ──
+ * 블럭 위에서 마우스를 움직이면 커서 쪽으로 판이 기울어진다. 회전 각도는 Tilt3D 컴포넌트가
+ * 인라인 transform으로 매 프레임 써넣고, 여기서는 "기울어지는 동안"에 필요한 것만 정의한다.
+ *
+ * 클래스를 두 번 겹쳐 쓴 건(.pl-tilting.pl-tilting) 특이도를 0,2,0으로 올리기 위해서다 —
+ * 대상 중 .pl-plan-phases li(0,1,1)와 .pl-cal-cell.active(0,2,0)가 단일 클래스보다 특이도가
+ * 높아서, 그냥 .pl-tilting으로는 transition을 덮어쓰지 못한다. transform에 transition이 걸린
+ * 채로 매 프레임 각도를 바꾸면 커서를 뒤늦게 따라오며 흐물거려서, 기울어지는 동안에만
+ * transform을 전환 대상에서 뺀다(테두리·그림자는 그대로 부드럽게 유지). */
+.pl-tilting.pl-tilting {
+  transition-property: border-color, box-shadow;
+  transform-style: preserve-3d;
+  will-change: transform;
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-tilting.pl-tilting {
+    transform: none !important;
+  }
 }

@@ -28,6 +28,7 @@ import CourseElevation from "@/components/CourseElevation";
 import TrainingPlan from "@/components/TrainingPlan";
 import PredictionHistoryChart from "@/components/PredictionHistoryChart";
 import Reveal from "@/components/Reveal";
+import Tilt3D from "@/components/Tilt3D";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,7 @@ export default async function Home() {
 
   return (
     <div>
+      <Tilt3D />
       <header className="pl-header">
         <a href="/" className="pl-logo">
           Pace<span>Lab</span>
