@@ -122,20 +122,20 @@ def fmt_time(seconds: float) -> str:
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
-def sync_activities(api: Garmin, base_url: str, pin: str, days_back: int) -> None:
-    try:
-        existing = requests.get(f"{base_url}/api/data", timeout=20).json()
-        race_dates = {r["date"] for r in existing.get("races", [])}
-    except Exception as e:  # noqa: BLE001 - 조회 실패해도 동기화 자체는 계속 진행
-        print(f"기존 대회 기록 조회 실패(레이스데이 중복 방지 건너뜀): {e}", file=sys.stderr)
-        race_dates = set()
-
+def collect_activities(api: Garmin, race_dates: set[str], days_back: int) -> list[dict]:
+    """PaceLab이 이해하는 훈련 entry 딕셔너리 목록을 만들어서 반환만 한다(전송은 호출부에서
+    한 번에 배치로). 예전엔 활동마다 개별 POST를 보내서, PaceLab 서버 쪽 저장 한 번(getData
+    의 list 1건 + saveData의 put/list 2건 = 3건)이 활동 개수만큼 곱절로 나갔다 — 백필처럼
+    한 번에 수십~수백 건을 동기화할 때 Blob Advanced Operations가 순식간에 치솟는 원인이었다.
+    지금은 하나로 모아서 배치 엔드포인트에 한 번만 보내므로, 활동이 몇 건이든 저장 비용은
+    3건으로 고정된다."""
     start = (today_kst() - timedelta(days=days_back)).isoformat()
     end = today_kst().isoformat()
     activities = api.get_activities_by_date(start, end) or []
     running = [a for a in activities if "running" in (a.get("activityType", {}).get("typeKey") or "")]
     print(f"최근 {days_back}일: 러닝 활동 {len(running)}건 발견")
 
+    entries = []
     for a in running:
         activity_id = a.get("activityId")
         distance_m = a.get("distance") or 0
@@ -169,16 +169,13 @@ def sync_activities(api: Garmin, base_url: str, pin: str, days_back: int) -> Non
         if a.get("activityName"):
             entry["note"] = f"Garmin: {a['activityName']}"
 
-        r = requests.post(
-            f"{base_url}/api/data",
-            json={"pin": pin, "type": "training", "entry": entry},
-            timeout=20,
-        )
-        status = "OK" if r.ok else f"실패({r.status_code}): {r.text[:200]}"
-        print(f"  {entry['date']} {entry['distanceKm']}km {entry['time']} -> {status}")
+        print(f"  {entry['date']} {entry['distanceKm']}km {entry['time']} -> 배치에 포함")
+        entries.append(entry)
+
+    return entries
 
 
-def sync_vo2max(api: Garmin, base_url: str, pin: str, lookback_days: int = 14) -> None:
+def find_vo2max(api: Garmin, lookback_days: int = 14) -> dict | None:
     # 가민이 매일 VO2max를 새로 계산해주는 건 아니라서(양질의 러닝을 해야 갱신됨),
     # 오늘 값이 비어 있으면 최근 며칠을 거슬러 올라가며 가장 최근에 갱신된 값을 찾는다.
     for days_ago in range(lookback_days):
@@ -195,15 +192,11 @@ def sync_vo2max(api: Garmin, base_url: str, pin: str, lookback_days: int = 14) -
         if not value:
             continue
 
-        r = requests.post(
-            f"{base_url}/api/data",
-            json={"pin": pin, "type": "vo2max", "entry": {"date": day, "vo2max": round(float(value), 1)}},
-            timeout=20,
-        )
-        print(f"VO2max {value} ({day}) -> {'OK' if r.ok else f'실패({r.status_code}): {r.text[:200]}'}")
-        return
+        print(f"VO2max {value} ({day}) -> 배치에 포함")
+        return {"date": day, "vo2max": round(float(value), 1)}
 
     print(f"최근 {lookback_days}일 안에서 VO2max 값을 찾지 못했습니다 (건너뜀).")
+    return None
 
 
 def main() -> None:
@@ -213,8 +206,31 @@ def main() -> None:
     days_back = int(os.environ.get("SYNC_DAYS_BACK", "3"))
 
     api = login()
-    sync_activities(api, base_url, pin, days_back)
-    sync_vo2max(api, base_url, pin)
+
+    try:
+        existing = requests.get(f"{base_url}/api/data", timeout=20).json()
+        race_dates = {r["date"] for r in existing.get("races", [])}
+    except Exception as e:  # noqa: BLE001 - 조회 실패해도 동기화 자체는 계속 진행
+        print(f"기존 대회 기록 조회 실패(레이스데이 중복 방지 건너뜀): {e}", file=sys.stderr)
+        race_dates = set()
+
+    entries = collect_activities(api, race_dates, days_back)
+    vo2max = find_vo2max(api)
+
+    if not entries and not vo2max:
+        print("새로 보낼 내용이 없어 저장 요청을 건너뜁니다.")
+        return
+
+    payload = {"pin": pin, "type": "batch", "entries": entries}
+    if vo2max:
+        payload["vo2max"] = vo2max
+
+    r = requests.post(f"{base_url}/api/data", json=payload, timeout=30)
+    if r.ok:
+        print(f"배치 저장 완료: 훈련 {len(entries)}건" + (", VO2max 포함" if vo2max else ""))
+    else:
+        print(f"배치 저장 실패({r.status_code}): {r.text[:300]}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
