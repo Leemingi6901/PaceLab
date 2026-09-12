@@ -22,8 +22,12 @@ export interface InbodyEntry {
   weightKg: number;
   bodyFatPct: number;
   muscleKg: number;
-  /** 워치·기기 측정 VO2max (선택) */
-  vo2max?: number;
+}
+
+/** 워치·기기로 측정한 VO2max 기록 — 인바디와 측정 주기가 달라 별도로 관리한다 */
+export interface Vo2maxEntry {
+  date: string;
+  vo2max: number;
 }
 
 export interface CourseSegment {
@@ -145,9 +149,9 @@ export const UNCERTAINTY_CAP = 0.12; // 최대 ±12%
  * - 체중 보정: 상대 VO2max는 체중에 반비례 → vdot × (기록 당시 체중 / 현재 체중), ±5% 캡
  * - 대회 기록 간 VDOT 편차(가중 변동계수)로 예상 기록의 불확실성 범위도 함께 계산
  */
-export function currentFitness(races: RaceRecord[], inbody: InbodyEntry[]): FitnessSummary | null {
+export function currentFitness(races: RaceRecord[], inbody: InbodyEntry[], asOfMs: number = Date.now()): FitnessSummary | null {
   if (races.length === 0) return null;
-  const now = Date.now();
+  const now = asOfMs;
   let wSum = 0;
   let vSum = 0;
   let vSqSum = 0;
@@ -217,6 +221,166 @@ export function predictAll(fit: FitnessSummary | null): Prediction[] {
       highSec: timeSec * (1 + u),
     };
   });
+}
+
+export interface BestEffort {
+  time: string;
+  timeSec: number;
+  distanceKm: number;
+  paceSecPerKm: number;
+  source: string;
+  date: string;
+  isRace: boolean;
+}
+
+/**
+ * 목표 거리(km) "이상"을 실제로 뛴 기록 중 완주 시간이 가장 짧은 것을 PB로 반환한다. 없으면 null.
+ * 공식 대회 기록뿐 아니라 훈련 기록도 함께 본다.
+ *
+ * 짧게 뛴 기록의 페이스를 목표 거리까지 늘려서 "PB"로 치지 않는다 — 실제로 그 거리를 다 뛴 게
+ * 아니라면 그 페이스를 끝까지 유지했을지 알 수 없기 때문이다. 그래서 최소 거리는 target×0.97
+ * (GPS 오차 정도만 허용)로 엄격하게 잡는다. 순위는 페이스가 아니라 실제 완주 시간으로 매긴다 —
+ * 예를 들어 10.0km를 6'55"/km로 뛴 기록과 11.3km를 6'43"/km로 뛴 기록이 있으면, 페이스는
+ * 후자가 더 빠르지만 "10K를 가장 빨리 뛴 시간"은 실제로 더 짧게 걸린 전자다. 더 길게 뛴 기록은
+ * 그만큼 시간도 오래 걸리므로 완주 시간 비교에서 자연히 불리해져 target×1.5까지만 폭넓게 허용해도
+ * 문제되지 않는다. 트레드밀 기록은 보정 시간을 쓴다.
+ *
+ * 훈련 기록은 평균심박이 있으면 "이지" 강도로 판단되는 것은 PB 후보에서 제외한다 — 페이스는
+ * 전력질주 수준인데 심박은 여유심박 72% 미만(가벼운 강도)인 경우, 진짜 그렇게 빨리 뛴 게 아니라
+ * 트레드밀 거리 센서 오류 등으로 거리/시간이 잘못 기록됐을 가능성이 높다고 보기 때문이다.
+ */
+export function personalBest(
+  races: RaceRecord[],
+  trainings: Training[],
+  targetKm: number,
+  maxHr?: number,
+  restHr?: number,
+  undershootTolerance = 0.03,
+  overshootTolerance = 0.5
+): BestEffort | null {
+  const minKm = targetKm * (1 - undershootTolerance);
+  const maxKm = targetKm * (1 + overshootTolerance);
+  const inRange = (km: number) => km >= minKm && km <= maxKm;
+
+  const candidates: BestEffort[] = [];
+  for (const r of races) {
+    if (!inRange(r.distanceKm)) continue;
+    const timeSec = parseTime(r.time);
+    candidates.push({
+      time: r.time,
+      timeSec,
+      distanceKm: r.distanceKm,
+      paceSecPerKm: timeSec / r.distanceKm,
+      source: r.race,
+      date: r.date,
+      isRace: true,
+    });
+  }
+  for (const t of trainings) {
+    if (!inRange(t.distanceKm)) continue;
+    if (t.avgHr && maxHr && classifyIntensityFromHr(t.avgHr, maxHr, restHr) === "이지") continue;
+    const timeSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
+    candidates.push({
+      time: formatTime(timeSec),
+      timeSec,
+      distanceKm: t.distanceKm,
+      paceSecPerKm: timeSec / t.distanceKm,
+      source: t.note || "훈련 기록",
+      date: t.date,
+      isRace: false,
+    });
+  }
+  if (candidates.length === 0) return null;
+  return candidates.reduce((best, c) => (c.timeSec < best.timeSec ? c : best));
+}
+
+/** 훈련 기록에서 뽑아 VDOT 계산에 넣은 항목임을 표시하는 마커 (RaceRecord.note에 붙인다) */
+export const TRAINING_EFFORT_NOTE = "training-effort";
+
+/**
+ * 공식 대회가 아니어도 5K/10K/하프/풀코스 각 구간에서 "내 최고 기록"이 훈련으로 나왔다면
+ * 그것도 체력 추정(VDOT)에 반영한다 — 안 그러면 대회를 자주 안 뛰는 동안 훈련으로 실력이
+ * 늘어도(예: 이번 주 5K PB 경신) 예측이 못 따라간다.
+ *
+ * "레이스급"인지 판단할 때 평균심박에 고정 임계값(예: 여유심박 86%)을 쓰면 종목별 페이스 특성과
+ * 안 맞는다 — 27분짜리 5K 전력질주는 시작 1~2분의 워밍업 구간 때문에 평균심박이 인터벌 반복
+ * 구간보다 자연히 낮게 나온다(이 값들 기준으로는 여유심박 84% 안팎에서 "보통"으로 분류돼
+ * 아예 걸러졌었다). 그래서 대신 personalBest()가 이미 구간별로 골라둔 "그 거리 최고 기록"을
+ * 그대로 쓴다 — 트레드밀 센서 오류로 의심되는 기록(이지 강도인데 페이스만 빠른 경우) 배제
+ * 로직도 이미 거기 있다. 그 최고 기록이 공식 대회면 이미 races에 있으니 건너뛴다.
+ */
+export function trainingRaceBests(
+  races: RaceRecord[],
+  trainings: Training[],
+  inbody: InbodyEntry[],
+  maxHr?: number,
+  restHr?: number
+): RaceRecord[] {
+  const sortedInbody = [...inbody].sort((a, b) => a.date.localeCompare(b.date));
+  // 훈련 기록엔 체중이 안 붙어 있으니, 그 날짜 시점에 가장 가까운(이전) 인바디 체중으로 근사한다 —
+  // 없으면(그 훈련이 첫 인바디 측정보다 앞선 경우) 가장 오래된 기록값으로 대체한다. 이 근사치가
+  // 없으면 currentFitness()의 체중 보정 기준(baseWeight)이 항상 latestWeight로 무너져 버려서
+  // 체중 시뮬레이터 등 체중 보정 자체가 무력화된다.
+  const weightNear = (dateStr: string): number | undefined => {
+    let w: number | undefined;
+    for (const m of sortedInbody) {
+      if (m.date <= dateStr) w = m.weightKg;
+      else break;
+    }
+    return w ?? sortedInbody[0]?.weightKg;
+  };
+
+  const results: RaceRecord[] = [];
+  for (const t of TARGETS) {
+    const best = personalBest(races, trainings, t.km, maxHr, restHr);
+    if (!best || best.isRace) continue;
+    results.push({
+      race: best.source,
+      date: best.date,
+      distanceKm: best.distanceKm,
+      time: best.time,
+      weightKg: weightNear(best.date),
+      note: TRAINING_EFFORT_NOTE,
+    });
+  }
+  return results;
+}
+
+export interface WeightScenario {
+  deltaKg: number;
+  weightKg: number;
+  marathonSec: number;
+  /** 지금(deltaKg=0) 대비 마라톤 예상 기록 차이(초). 음수면 더 빨라짐 */
+  marathonDeltaSec: number;
+}
+
+/**
+ * 체중이 지금보다 ±deltaKg 달라지면 마라톤(42.195km) 예상 기록이 어떻게 바뀌는지 보여준다.
+ * 체지방·근육량의 "적정 비율"을 처방하는 게 아니라, 이 앱이 이미 예측에 쓰고 있는 "대회 당시
+ * 체중 대비 최근 체중" 공식(±5% 캡)을 그대로 가정법으로 계산해 보여줄 뿐이다 — 의학적·영양학적
+ * 조언이 아니다. combinedFactor(훈련량·체성분 추이·VO2max 보정)는 그대로 곱해 다른 조건은
+ * 고정한다.
+ */
+export function weightScenarios(
+  races: RaceRecord[],
+  inbody: InbodyEntry[],
+  combinedFactor: number,
+  deltasKg: number[] = [-3, -2, -1, 0, 1, 2]
+): WeightScenario[] {
+  if (races.length === 0 || inbody.length === 0) return [];
+  const latest = inbody[inbody.length - 1];
+
+  const results = deltasKg.map((deltaKg) => {
+    const weightKg = Math.round((latest.weightKg + deltaKg) * 10) / 10;
+    const hypoInbody = [...inbody.slice(0, -1), { ...latest, weightKg }];
+    const base = currentFitness(races, hypoInbody);
+    const vdot = base ? base.weightAdjustedVdot * combinedFactor : 0;
+    const marathonSec = base ? predictTimeMin(vdot, 42195) * 60 : 0;
+    return { deltaKg, weightKg, marathonSec };
+  });
+
+  const zero = results.find((r) => r.deltaKg === 0) ?? results[0];
+  return results.map((r) => ({ ...r, marathonDeltaSec: r.marathonSec - zero.marathonSec }));
 }
 
 export interface SplitPrediction {
@@ -296,56 +460,86 @@ export function effectiveTimeSec(rawTimeSec: number, treadmill?: boolean): numbe
   return treadmill ? rawTimeSec * TREADMILL_CORRECTION : rawTimeSec;
 }
 
-export type IntensityZone = "이지" | "마라톤" | "템포" | "인터벌" | "레페티션" | "—";
+export type IntensityZone = "이지" | "보통" | "하드" | "—";
 
 interface ZoneBreakpoints {
+  /** 이보다 느리면 이지 (풀코스 페이스 × 1.08) */
   easy: number;
-  marathon: number;
-  tempo: number;
-  interval: number;
+  /** 이보다 빠르면 하드, 이 값과 easy 사이면 보통 (풀코스·하프 중간 페이스) */
+  hard: number;
 }
 
-/** 예측 페이스(5K/10K/하프/풀코스)로부터 강도 구간 경계(sec/km)를 구한다. 예측이 없으면 null */
+/** 예측 페이스(하프/풀코스)로부터 강도 구간 경계(sec/km)를 구한다. 예측이 없으면 null */
 function zoneBreakpoints(predictions: Prediction[]): ZoneBreakpoints | null {
   if (predictions.length === 0) return null;
   const byLabel = Object.fromEntries(predictions.map((p) => [p.label, p.paceSecPerKm]));
   const full = byLabel["풀코스"];
   const half = byLabel["하프"];
-  const tenK = byLabel["10K"];
-  const fiveK = byLabel["5K"];
-  if (!full || !half || !tenK || !fiveK) return null;
-  return { easy: full * 1.08, marathon: (full + half) / 2, tempo: (half + tenK) / 2, interval: (tenK + fiveK) / 2 };
+  if (!full || !half) return null;
+  return { easy: full * 1.08, hard: (full + half) / 2 };
 }
 
-/** 고도 보정 페이스를 현재 체력의 거리별 예상 페이스와 비교해 강도 구간을 분류한다 */
+/** 고도 보정 페이스를 현재 체력의 예상 페이스와 비교해 강도(이지/보통/하드)를 분류한다 */
 export function classifyIntensity(gapSecPerKm: number, predictions: Prediction[]): IntensityZone {
   const bp = zoneBreakpoints(predictions);
   if (!bp) return "—";
   if (gapSecPerKm >= bp.easy) return "이지";
-  if (gapSecPerKm >= bp.marathon) return "마라톤";
-  if (gapSecPerKm >= bp.tempo) return "템포";
-  if (gapSecPerKm >= bp.interval) return "인터벌";
-  return "레페티션";
+  if (gapSecPerKm >= bp.hard) return "보통";
+  return "하드";
+}
+
+const HR_EASY_MAX = 0.72; // 이보다 낮은 %여유심박이면 이지
+const HR_HARD_MIN = 0.86; // 이보다 높은 %여유심박이면 하드
+
+/** 평균 심박(여유심박 %)으로 강도(이지/보통/하드)를 분류한다. 페이스보다 그날의 실제 체감 강도를 더 직접적으로 반영한다 */
+export function classifyIntensityFromHr(avgHr: number, maxHr: number, restHr?: number): IntensityZone {
+  const pct = restHr && restHr > 0 && restHr < maxHr ? (avgHr - restHr) / (maxHr - restHr) : avgHr / maxHr;
+  if (pct < HR_EASY_MAX) return "이지";
+  if (pct < HR_HARD_MIN) return "보통";
+  return "하드";
+}
+
+/**
+ * 강도를 결정한다: 직접 태그 > 심박(있으면, 그날 체감 강도를 더 직접 반영) > 페이스 자동 분류 순.
+ */
+export function resolveIntensity(
+  gapSecPerKm: number,
+  predictions: Prediction[],
+  override?: IntensityZone,
+  avgHr?: number,
+  maxHr?: number,
+  restHr?: number
+): IntensityZone {
+  if (override) return override;
+  if (avgHr && maxHr) return classifyIntensityFromHr(avgHr, maxHr, restHr);
+  return classifyIntensity(gapSecPerKm, predictions);
 }
 
 /**
  * 강도 존의 페이스 밴드(sec/km)를 반환한다. lo=빠른 쪽 경계, hi=느린 쪽 경계.
- * 이지/레페티션처럼 한쪽으로 열린 구간은 인접 구간과 같은 폭을 그 방향으로 가정해 밴드를 만든다.
+ * 이지/하드처럼 한쪽으로 열린 구간은 보통 구간과 같은 폭을 그 방향으로 가정해 밴드를 만든다.
  * 예측이 없으면 null.
  */
 export function zonePaceBand(zone: IntensityZone, predictions: Prediction[]): { lo: number; hi: number } | null {
   const bp = zoneBreakpoints(predictions);
   if (!bp || zone === "—") return null;
-  if (zone === "이지") return { lo: bp.easy, hi: bp.easy + (bp.easy - bp.marathon) };
-  if (zone === "마라톤") return { lo: bp.marathon, hi: bp.easy };
-  if (zone === "템포") return { lo: bp.tempo, hi: bp.marathon };
-  if (zone === "인터벌") return { lo: bp.interval, hi: bp.tempo };
-  return { hi: bp.interval, lo: bp.interval - (bp.tempo - bp.interval) };
+  const width = bp.easy - bp.hard;
+  if (zone === "이지") return { lo: bp.easy, hi: bp.easy + width };
+  if (zone === "보통") return { lo: bp.hard, hi: bp.easy };
+  return { hi: bp.hard, lo: bp.hard - width };
+}
+
+/** "5'58"~6'12"/km" 처럼 강도 존의 목표 페이스 범위를 사람이 읽는 문자열로 반환한다 */
+export function zoneBandLabel(zone: IntensityZone, predictions: Prediction[]): string | null {
+  const band = zonePaceBand(zone, predictions);
+  if (!band) return null;
+  return `${formatPace(band.lo)}~${formatPace(band.hi)}/km`;
 }
 
 /**
- * GAP이 분류된 존의 "한가운데"에 얼마나 가까운지 0(경계 또는 그 너머)~1(정중앙)로 반환한다.
- * 존 경계에 걸친 애매한 페이스보다 한가운데를 또렷하게 찍은 페이스를 더 "깔끔한 실행"으로 본다.
+ * GAP이 분류된 존의 "한가운데"에 얼마나 가까운지 0~1로 반환한다 (1=정중앙).
+ * 경계를 살짝 벗어난 정도로 0점까지 뚝 떨어지지 않도록, 구간 밖으로도 완만하게 감쇠시킨다
+ * (반폭의 2.5배 떨어진 지점에서 0에 도달).
  */
 export function gapCenteringFraction(gapSecPerKm: number, zone: IntensityZone, predictions: Prediction[]): number {
   const band = zonePaceBand(zone, predictions);
@@ -353,7 +547,8 @@ export function gapCenteringFraction(gapSecPerKm: number, zone: IntensityZone, p
   const { lo, hi } = band;
   const center = (lo + hi) / 2;
   const halfWidth = (hi - lo) / 2 || 1;
-  return Math.max(0, Math.min(1, 1 - Math.abs(gapSecPerKm - center) / halfWidth));
+  const reach = halfWidth * 2.5;
+  return Math.max(0, Math.min(1, 1 - Math.abs(gapSecPerKm - center) / reach));
 }
 
 export type RunnerTierName = "챌린저" | "다이아몬드" | "플래티넘" | "골드" | "실버" | "브론즈" | "언랭크";
@@ -415,25 +610,9 @@ const HR_ZONES = {
   repetition: { label: "Z5+", min: 0.95, max: 1.03 },
 } as const;
 
-/** IntensityZone("이지" 등) → HR_ZONES 키 매핑. "—"는 없음 */
-const ZONE_TO_HR_KEY: Record<Exclude<IntensityZone, "—">, keyof typeof HR_ZONES> = {
-  이지: "recovery",
-  마라톤: "marathon",
-  템포: "tempo",
-  인터벌: "interval",
-  레페티션: "repetition",
-};
-
 function hrTarget(pct: number, maxHr: number, restHr?: number): number {
   if (restHr && restHr > 0 && restHr < maxHr) return restHr + pct * (maxHr - restHr);
   return pct * maxHr;
-}
-
-/** 강도 존에 해당하는 목표 심박 범위(bpm)를 반환한다. 최대심박이 없으면 null */
-export function hrRangeForZone(zone: IntensityZone, maxHr?: number, restHr?: number): { lo: number; hi: number } | null {
-  if (!maxHr || maxHr <= 0 || zone === "—") return null;
-  const { min, max } = HR_ZONES[ZONE_TO_HR_KEY[zone]];
-  return { lo: hrTarget(min, maxHr, restHr), hi: hrTarget(max, maxHr, restHr) };
 }
 
 function hrGuidanceFor(
@@ -488,8 +667,8 @@ export function recommendWorkouts(
   for (const t of sorted) {
     const timeSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
     const gap = gradeAdjustedPace(timeSec, t.distanceKm, t.elevGainM ?? 0, t.elevLossM ?? 0);
-    const zone = classifyIntensity(gap, predictions);
-    if (zone === "템포" || zone === "인터벌" || zone === "레페티션") {
+    const zone = resolveIntensity(gap, predictions, t.intensityOverride, t.avgHr, maxHr, restHr);
+    if (zone === "하드") {
       const d = daysAgo(t.date);
       if (d < daysSinceHard) daysSinceHard = d;
     }

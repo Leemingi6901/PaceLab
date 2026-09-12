@@ -7,16 +7,17 @@ import {
   formatPace,
   effectiveTimeSec,
   gradeAdjustedPace,
-  classifyIntensity,
+  resolveIntensity,
+  zoneBandLabel,
+  type IntensityZone,
   type Prediction,
 } from "@/lib/predict";
-import { scoreTrainings, type LoadPoint } from "@/lib/trainingLoad";
+import { scoreTrainings } from "@/lib/trainingLoad";
 import type { Training } from "@/lib/store";
 
 interface Props {
   trainings: Training[];
   predictions: Prediction[];
-  loadSeries: LoadPoint[];
   maxHr?: number;
   restHr?: number;
 }
@@ -30,7 +31,11 @@ interface EditForm {
   elevLossM: string;
   treadmill: boolean;
   note: string;
+  /** 빈 문자열이면 자동 분류 */
+  intensityOverride: string;
 }
+
+const INTENSITY_OPTIONS: IntensityZone[] = ["이지", "보통", "하드"];
 
 function toForm(t: Training): EditForm {
   return {
@@ -42,15 +47,14 @@ function toForm(t: Training): EditForm {
     elevLossM: String(t.elevLossM ?? 0),
     treadmill: t.treadmill ?? false,
     note: t.note ?? "",
+    intensityOverride: t.intensityOverride ?? "",
   };
 }
 
 const ZONE_CLASS: Record<string, string> = {
   이지: "zone-easy",
-  마라톤: "zone-marathon",
-  템포: "zone-tempo",
-  인터벌: "zone-interval",
-  레페티션: "zone-rep",
+  보통: "zone-normal",
+  하드: "zone-hard",
   "—": "",
 };
 
@@ -61,7 +65,9 @@ function scoreClass(score: number): string {
   return "score-poor";
 }
 
-export default function TrainingLog({ trainings, predictions, loadSeries, maxHr, restHr }: Props) {
+const PAGE_SIZE = 4;
+
+export default function TrainingLog({ trainings, predictions, maxHr, restHr }: Props) {
   const router = useRouter();
   const [pin, setPin] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,9 +75,48 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(0);
+  const [syncingGarmin, setSyncingGarmin] = useState(false);
 
-  const recent = [...trainings].reverse().slice(0, 8);
-  const scores = scoreTrainings(trainings, predictions, loadSeries, maxHr, restHr);
+  function refresh() {
+    setRefreshing(true);
+    router.refresh();
+    setTimeout(() => setRefreshing(false), 600);
+  }
+
+  async function syncGarmin() {
+    if (!requirePin()) return;
+    setSyncingGarmin(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/garmin-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setMsg({ kind: "ok", text: "가민 동기화를 요청했습니다 — 20~30초 뒤 자동으로 새로고침됩니다." });
+        setTimeout(() => {
+          router.refresh();
+          setSyncingGarmin(false);
+        }, 25000);
+      } else {
+        setMsg({ kind: "err", text: json.error ?? "동기화 요청에 실패했습니다." });
+        setSyncingGarmin(false);
+      }
+    } catch {
+      setMsg({ kind: "err", text: "네트워크 오류가 발생했습니다." });
+      setSyncingGarmin(false);
+    }
+  }
+
+  const sorted = [...trainings].reverse();
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const recent = sorted.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
+  const scores = scoreTrainings(trainings, predictions, maxHr, restHr);
 
   function requirePin(): boolean {
     if (!pin.trim()) {
@@ -115,6 +160,7 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
             elevLossM: form.elevLossM || 0,
             treadmill: form.treadmill,
             note: form.note || undefined,
+            intensityOverride: form.intensityOverride || undefined,
           },
         }),
       });
@@ -178,6 +224,12 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
           placeholder="수정/삭제 인증번호"
           autoComplete="off"
         />
+        <button type="button" className="pl-icon-btn" onClick={refresh} disabled={refreshing}>
+          {refreshing ? "새로고침 중…" : "↻ 새로고침"}
+        </button>
+        <button type="button" className="pl-icon-btn" onClick={syncGarmin} disabled={syncingGarmin}>
+          {syncingGarmin ? "가민 동기화 중…" : "⌚ 가민 데이터 불러오기"}
+        </button>
         {msg && <span className={`pl-msg-inline ${msg.kind}`}>{msg.text}</span>}
       </div>
       <div className="pl-table-wrap">
@@ -203,7 +255,7 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
               const correctedSec = effectiveTimeSec(parseTime(t.time), t.treadmill);
               const correctedPace = correctedSec / t.distanceKm;
               const gap = gradeAdjustedPace(correctedSec, t.distanceKm, gain, loss);
-              const zone = classifyIntensity(gap, predictions);
+              const zone = resolveIntensity(gap, predictions, t.intensityOverride, t.avgHr, maxHr, restHr);
               const isEditing = editingId === t.id;
 
               if (isEditing && form) {
@@ -261,7 +313,28 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
                       </div>
                     </td>
                     <td>
-                      <span className="pl-edit-hint">자동계산</span>
+                      <select
+                        value={form.intensityOverride}
+                        onChange={(e) => setForm({ ...form, intensityOverride: e.target.value })}
+                        style={{ width: 80 }}
+                      >
+                        <option value="">자동</option>
+                        {INTENSITY_OPTIONS.map((z) => (
+                          <option key={z} value={z}>
+                            {z}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pl-zone-bands">
+                        {INTENSITY_OPTIONS.map((z) => {
+                          const label = zoneBandLabel(z, predictions);
+                          return label ? (
+                            <span key={z}>
+                              {z} {label}
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
                     </td>
                     <td>
                       <span className="pl-edit-hint">자동계산</span>
@@ -315,7 +388,10 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
                       )}
                     </td>
                     <td>
-                      <span className={`pl-zone ${ZONE_CLASS[zone]}`}>{zone}</span>
+                      <span className={`pl-zone ${ZONE_CLASS[zone]}`} title={t.intensityOverride ? "직접 지정한 강도" : "자동 분류"}>
+                        {zone}
+                        {t.intensityOverride && <span className="pl-zone-manual">✎</span>}
+                      </span>
                     </td>
                     <td>
                       {!score ? (
@@ -349,7 +425,7 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
                         <div className="pl-score-detail">
                           <div className="pl-score-detail-head">
                             <span className={`pl-score-badge lg ${scoreClass(score.score)}`}>{score.score}점</span>
-                            <span className="pl-score-sub">부하 타이밍 {score.loadFitScore}/60 · 실행 정확도 {score.executionScore}/40</span>
+                            <span className="pl-score-sub">"{score.zone}" 강도 기준 페이스 정확도</span>
                           </div>
                           <div className="pl-score-detail-cols">
                             <div>
@@ -379,6 +455,29 @@ export default function TrainingLog({ trainings, predictions, loadSeries, maxHr,
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="pl-pager">
+          <button
+            type="button"
+            className="pl-icon-btn"
+            disabled={currentPage === 0}
+            onClick={() => setPage(currentPage - 1)}
+          >
+            ← 최근
+          </button>
+          <span className="pl-pager-status">
+            {currentPage + 1} / {totalPages} 페이지 ({sorted.length}건)
+          </span>
+          <button
+            type="button"
+            className="pl-icon-btn"
+            disabled={currentPage >= totalPages - 1}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            이전 →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

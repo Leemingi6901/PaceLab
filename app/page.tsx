@@ -6,15 +6,29 @@ import {
   parseTime,
   formatTime,
   formatPace,
+  personalBest,
+  TRAINING_EFFORT_NOTE,
+  trainingRaceBests,
+  weightScenarios,
 } from "@/lib/predict";
 import { getData } from "@/lib/store";
-import { buildLoadSeries, summarizeLoad, estimateFitness } from "@/lib/trainingLoad";
+import {
+  buildLoadSeries,
+  summarizeLoad,
+  estimateFitness,
+  buildFitnessHistory,
+  CTL_FACTOR_CAP,
+  COMBINED_FACTOR_CAP,
+} from "@/lib/trainingLoad";
 import { buildTrainingPlan } from "@/lib/trainingPlan";
 import TrainingLog from "@/components/TrainingLog";
 import MonthlyMileage from "@/components/MonthlyMileage";
 import TrainingLoad from "@/components/TrainingLoad";
 import CourseElevation from "@/components/CourseElevation";
 import TrainingPlan from "@/components/TrainingPlan";
+import PredictionHistoryChart from "@/components/PredictionHistoryChart";
+import Reveal from "@/components/Reveal";
+import Tilt3D from "@/components/Tilt3D";
 
 export const dynamic = "force-dynamic";
 
@@ -24,25 +38,35 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
 
 export default async function Home() {
   const data = await getData();
-  const { races, inbody, trainings, upcoming, profile } = data;
+  const { races, inbody, vo2max, trainings, upcoming, profile } = data;
+
+  const maxHr = profile.maxHr ?? (Math.max(0, ...races.map((r) => r.maxHr ?? 0)) || undefined);
+  const restHr = profile.restHr;
+  // 5K/10K/하프/풀코스 구간별 "내 최고 기록"이 훈련에서 나왔다면 그것도 체력 추정(VDOT)에
+  // 반영한다 — 공식 대회를 자주 안 뛰는 동안 훈련으로 실력이 늘어도 예측이 못 따라가지 않도록.
+  const efforts = [...races, ...trainingRaceBests(races, trainings, inbody, maxHr, restHr)];
 
   const loadSeries = buildLoadSeries(races, inbody, trainings);
   const loadSummary = summarizeLoad(loadSeries);
-  const fit = estimateFitness(races, inbody, loadSeries);
+  const fit = estimateFitness(efforts, inbody, loadSeries, vo2max);
+  const fitnessHistory = buildFitnessHistory(races, inbody, trainings, vo2max, maxHr, restHr);
   const predictions = predictAll(fit);
   const course = upcoming ? predictCourseSplits(fit, upcoming) : null;
   const plan = upcoming
     ? buildTrainingPlan(upcoming.date, upcoming.distanceKm, trainings, upcoming.monthlyTargetKm)
     : null;
-  const maxHr = profile.maxHr ?? (Math.max(0, ...races.map((r) => r.maxHr ?? 0)) || undefined);
-  const restHr = profile.restHr;
   const workouts = recommendWorkouts(trainings, predictions, loadSummary?.tsb, maxHr, restHr);
   const tier = fit ? getRunnerTier(fit.weightAdjustedVdot) : null;
   const latestInbody = inbody[inbody.length - 1];
+  const trainingBoostAtCap =
+    !!fit &&
+    (Math.abs(fit.ctlFactor - 1) >= CTL_FACTOR_CAP - 0.001 || Math.abs(fit.combinedFactor - 1) >= COMBINED_FACTOR_CAP - 0.001);
 
   const maxW = Math.max(...inbody.map((m) => m.weightKg), 1);
   const maxF = Math.max(...inbody.map((m) => m.bodyFatPct), 1);
   const maxM = Math.max(...inbody.map((m) => m.muscleKg), 1);
+  const maxVo2 = Math.max(...vo2max.map((v) => v.vo2max), 1);
+  const weightScenariosList = fit ? weightScenarios(efforts, inbody, fit.combinedFactor) : [];
 
   const now = Date.now();
   const inLastDays = (dateStr: string, days: number) => now - new Date(dateStr).getTime() < days * 86400000;
@@ -55,6 +79,7 @@ export default async function Home() {
 
   return (
     <div>
+      <Tilt3D />
       <header className="pl-header">
         <a href="/" className="pl-logo">
           Pace<span>Lab</span>
@@ -62,6 +87,7 @@ export default async function Home() {
         <nav>
           <a href="#prediction">Prediction</a>
           <a href="#records">Records</a>
+          <a href="#predhistory">History</a>
           <a href="#condition">Condition</a>
           <a href="#training">Training</a>
           <a href="#mileage">Mileage</a>
@@ -99,11 +125,19 @@ export default async function Home() {
                     ? "체중 보정 적용"
                     : `체중·훈련량 반영 ${fit.combinedFactor >= 1 ? "+" : ""}${((fit.combinedFactor - 1) * 100).toFixed(1)}%`}
                 </small>
+                {trainingBoostAtCap && (
+                  <small className="pl-cap-hint" title="대회 기록 없이 훈련량만으로 예측을 흔들 수 있는 한도예요. 더 올리려면 새 대회 기록, 반복된 인바디·VO2max 측정이 필요해요.">
+                    반영 상한 도달 — 훈련만으로는 더 안 올라감
+                  </small>
+                )}
               </div>
               <div className="pl-stat">
                 <small>기준 최고 기록</small>
                 <b>{fit.baseRace.time}</b>
-                <small>{fit.baseRace.race}</small>
+                <small>
+                  {fit.baseRace.race}
+                  {fit.baseRace.note === TRAINING_EFFORT_NOTE ? " · 훈련" : ""}
+                </small>
               </div>
               <div className="pl-stat">
                 <small>현재 체중</small>
@@ -138,23 +172,33 @@ export default async function Home() {
         {predictions.length > 0 && (
           <div className="pl-hero-pb" id="prediction">
             <div className="pl-grid">
-              {predictions.map((p) => (
-                <div key={p.label} className="pl-card pl-pred">
-                  <span className="pl-badge">{p.label}</span>
-                  <div className="pl-time pl-time-range">
-                    {formatTime(p.lowSec)} ~ {formatTime(p.highSec)}
+              {predictions.map((p) => {
+                const pb = personalBest(races, trainings, p.distanceKm, maxHr, restHr);
+                return (
+                  <div key={p.label} className="pl-card pl-pred">
+                    <span className="pl-badge">{p.label}</span>
+                    <div className="pl-time pl-time-range">
+                      {formatTime(p.lowSec)} ~ {formatTime(p.highSec)}
+                    </div>
+                    <span className="pl-sub">
+                      {formatTime(p.timeSec)} 확률 가장 높음 · {formatPace(p.paceSecPerKm)}/km
+                    </span>
+                    {pb && (
+                      <span className="pl-pb-sub">
+                        내 PB {pb.time} · {pb.source} ({pb.date}
+                        {!pb.isRace ? " · 훈련" : ""})
+                      </span>
+                    )}
                   </div>
-                  <span className="pl-sub">
-                    {formatTime(p.timeSec)} 확률 가장 높음 · {formatPace(p.paceSecPerKm)}/km
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
       </section>
 
       {/* 01 공식 기록 */}
+      <Reveal>
       <section className="pl-section" id="records">
         <span className="pl-eyebrow">01 — OFFICIAL RECORDS</span>
         <h2>
@@ -182,10 +226,31 @@ export default async function Home() {
           </div>
         )}
       </section>
+      </Reveal>
 
-      {/* 02 인바디 */}
+      {/* 02 예측 변동 히스토리 */}
+      <Reveal>
+      <section className="pl-section" id="predhistory">
+        <span className="pl-eyebrow">02 — PREDICTION HISTORY</span>
+        <h2>
+          일별 예측 <em>변동 추이</em>
+        </h2>
+        <p className="pl-section-desc">
+          그날까지 쌓인 데이터만으로 다시 계산한 "그날의 예측"을 이어붙인 그래프입니다. 거리별로 탭을
+          바꿔볼 수 있고, 변화가 있었던 지점에 마우스를 올리면 원인이 표시됩니다.
+        </p>
+        {fitnessHistory.length < 2 ? (
+          <EmptyNote>데이터가 더 쌓이면 예측 변동 추이가 여기 표시됩니다.</EmptyNote>
+        ) : (
+          <PredictionHistoryChart history={fitnessHistory} />
+        )}
+      </section>
+      </Reveal>
+
+      {/* 03 인바디 */}
+      <Reveal>
       <section className="pl-section" id="condition">
-        <span className="pl-eyebrow">02 — BODY CONDITION</span>
+        <span className="pl-eyebrow">03 — BODY CONDITION</span>
         <h2>
           인바디 <em>추이</em>
         </h2>
@@ -229,35 +294,85 @@ export default async function Home() {
             </div>
           </>
         )}
+        {vo2max.length > 0 && (
+          <div className="pl-vo2-block">
+            <h3 className="pl-vo2-title">VO2max 추이</h3>
+            <div className="pl-inbody">
+              {vo2max.map((v) => (
+                <div key={v.date} className="pl-inbody-col">
+                  <div className="pl-bars">
+                    <div className="pl-bar pl-bar-vo2" style={{ height: `${(v.vo2max / maxVo2) * 100}%` }} />
+                  </div>
+                  <div className="pl-vals">{v.vo2max}</div>
+                  <small>{v.date}</small>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {weightScenariosList.length > 0 && (
+          <div className="pl-weight-sim">
+            <h3 className="pl-vo2-title">체중 변화 시뮬레이터 — 마라톤 기록 가정</h3>
+            <p className="pl-weight-sim-note">
+              체지방·근육량의 "적정 비율"을 처방하는 건 아니에요. 지금 이 앱이 예측에 쓰는
+              "대회 당시 체중 대비 최근 체중" 보정(최대 ±5%)을 그대로 가정법으로 계산한
+              것뿐이고, 의학적·영양학적 조언이 아닙니다.
+            </p>
+            <div className="pl-weight-sim-grid">
+              {weightScenariosList.map((s) => (
+                <div key={s.deltaKg} className={`pl-weight-sim-cell ${s.deltaKg === 0 ? "current" : ""}`}>
+                  <span className="pl-weight-sim-kg">
+                    {s.weightKg}kg{s.deltaKg === 0 ? " (현재)" : ""}
+                  </span>
+                  <span className="pl-weight-sim-time">{formatTime(s.marathonSec)}</span>
+                  {s.deltaKg !== 0 && (
+                    <span className={`pl-weight-sim-delta ${s.marathonDeltaSec < 0 ? "faster" : s.marathonDeltaSec > 0 ? "slower" : ""}`}>
+                      {s.marathonDeltaSec === 0
+                        ? "변화 없음"
+                        : `${s.marathonDeltaSec < 0 ? "▼" : "▲"} ${formatTime(Math.abs(s.marathonDeltaSec))}`}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
+      </Reveal>
 
       {/* 03 훈련 로그 */}
+      <Reveal>
       <section className="pl-section" id="training">
-        <span className="pl-eyebrow">03 — TRAINING LOG</span>
+        <span className="pl-eyebrow">04 — TRAINING LOG</span>
         <h2>
           러닝 <em>훈련 기록</em>
         </h2>
         <p className="pl-section-desc">
-          서울 인근 훈련 기록. 최근 8회를 보여줍니다. 고도 보정 페이스(GAP)로 업/다운힐을 반영해 훈련 강도를
-          자동 분류하고, 그날의 컨디션(TSB)에 이 강도가 맞았는지 + 페이스·심박이 그 강도를 얼마나 정확히
-          찍었는지를 종합해 100점 만점 훈련 점수를 매깁니다. 점수에 마우스를 올리면 평가 근거가 보입니다.
+          서울 인근 훈련 기록. 최근 4건씩 페이지로 넘겨볼 수 있습니다. 강도(이지/보통/하드)는 직접 태그하지 않으면 평균심박(있으면
+          우선) 또는 고도 보정 페이스(GAP) 기준으로 자동 판단합니다. 롱런인지 마라톤 페이스인지 같은 훈련
+          유형과는 무관하게, 컨디션과도 무관하게, 그 강도 구간을 페이스로 얼마나 정확히 실행했는지만으로
+          100점 만점 훈련 점수를 매깁니다. 점수를 누르면 평가 근거가 보입니다.
         </p>
-        <TrainingLog trainings={trainings} predictions={predictions} loadSeries={loadSeries} maxHr={maxHr} restHr={restHr} />
+        <TrainingLog trainings={trainings} predictions={predictions} maxHr={maxHr} restHr={restHr} />
       </section>
+      </Reveal>
 
       {/* 04 월간 마일리지 */}
+      <Reveal>
       <section className="pl-section" id="mileage">
-        <span className="pl-eyebrow">04 — MONTHLY MILEAGE</span>
+        <span className="pl-eyebrow">05 — MONTHLY MILEAGE</span>
         <h2>
           이번 달 <em>러닝 마일리지</em>
         </h2>
         <p className="pl-section-desc">대회와 훈련 기록을 날짜 기준으로 합산합니다. 대회일은 점으로 표시됩니다.</p>
         <MonthlyMileage races={races} trainings={trainings} />
       </section>
+      </Reveal>
 
       {/* 05 훈련 부하 */}
+      <Reveal>
       <section className="pl-section" id="load">
-        <span className="pl-eyebrow">05 — TRAINING LOAD</span>
+        <span className="pl-eyebrow">06 — TRAINING LOAD</span>
         <h2>
           훈련 부하 <em>&amp; 컨디션</em>
         </h2>
@@ -271,10 +386,12 @@ export default async function Home() {
           <TrainingLoad summary={loadSummary} />
         )}
       </section>
+      </Reveal>
 
       {/* 06 다음 훈련 추천 */}
+      <Reveal>
       <section className="pl-section" id="nextworkout">
-        <span className="pl-eyebrow">06 — NEXT WORKOUT</span>
+        <span className="pl-eyebrow">07 — NEXT WORKOUT</span>
         <h2>
           다음 훈련 <em>추천</em>
         </h2>
@@ -318,10 +435,12 @@ export default async function Home() {
           </div>
         )}
       </section>
+      </Reveal>
 
       {/* 07 주기화 훈련 계획 */}
+      <Reveal>
       <section className="pl-section" id="plan">
-        <span className="pl-eyebrow">07 — TRAINING PLAN</span>
+        <span className="pl-eyebrow">08 — TRAINING PLAN</span>
         <h2>
           대회까지 <em>주기화 훈련 계획</em>
         </h2>
@@ -340,10 +459,12 @@ export default async function Home() {
           <TrainingPlan plan={plan} />
         )}
       </section>
+      </Reveal>
 
       {/* 08 다음 대회 */}
+      <Reveal>
       <section className="pl-section" id="nextrace">
-        <span className="pl-eyebrow">08 — NEXT RACE</span>
+        <span className="pl-eyebrow">09 — NEXT RACE</span>
         <h2>
           다음 대회 <em>구간 전략</em>
         </h2>
@@ -410,6 +531,7 @@ export default async function Home() {
           </>
         )}
       </section>
+      </Reveal>
 
       <footer className="pl-footer">
         © 2026 PaceLab — Daniel의 마라톤 훈련 분석 랩 · <a href="/admin">데이터 입력</a>

@@ -6,6 +6,8 @@ next-env.d.ts
 .env.*
 .DS_Store
 *.log
+.claude/
+tsconfig.tsbuildinfo
 
 # 실제 개인 건강 데이터는 커밋 금지 — data/*.json은 공개 저장소에 올라갑니다
 # 민감한 원본 데이터는 private/ 폴더에 두세요
@@ -16,3 +18,8 @@ private/
 # 회사 네트워크 SSL 인터셉션 루트 인증서 (로컬 환경 전용)
 corporate-ca.pem
 dev-office.cmd
+
+# 가민 로그인 세션 토큰 — 절대 커밋 금지 (계정 접근 가능한 민감 정보)
+garmin_tokens_b64.txt
+scripts/__pycache__/
+scripts/.venv/

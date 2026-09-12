@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
-import { DataUnavailableError, getData, mutateData, type Training } from "@/lib/store";
-import { segmentsFromProfile, type RaceRecord, type InbodyEntry, type ElevationPoint } from "@/lib/predict";
+import { DataUnavailableError, getData, mutateData, type PaceLabData, type Training } from "@/lib/store";
+import {
+  segmentsFromProfile,
+  parseTime,
+  type RaceRecord,
+  type InbodyEntry,
+  type ElevationPoint,
+  type IntensityZone,
+} from "@/lib/predict";
+import { verifyPin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,32 +18,18 @@ export async function GET() {
 
 class NotFoundError extends Error {}
 
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-async function verifyPin(pin: unknown): Promise<{ ok: true } | { ok: false; res: NextResponse }> {
-  const adminPin = process.env.ADMIN_PIN;
-  if (!adminPin) {
-    return { ok: false, res: NextResponse.json({ error: "서버에 인증번호가 설정되지 않았습니다." }, { status: 500 }) };
-  }
-  // 무차별 대입을 조금이라도 늦추기 위한 지연
-  await new Promise((r) => setTimeout(r, 400));
-  if (typeof pin !== "string" || !timingSafeEqual(pin, adminPin)) {
-    return { ok: false, res: NextResponse.json({ error: "인증번호가 올바르지 않습니다." }, { status: 401 }) };
-  }
-  return { ok: true };
-}
-
 const TIME_RE = /^(\d+:)?[0-5]?\d:[0-5]\d$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function num(v: unknown): number | undefined {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+const INTENSITY_ZONES: IntensityZone[] = ["이지", "보통", "하드"];
+
+function intensityOverride(v: unknown): IntensityZone | undefined {
+  return INTENSITY_ZONES.includes(v as IntensityZone) ? (v as IntensityZone) : undefined;
 }
 
 function buildTraining(e: Record<string, unknown>): Omit<Training, "id"> {
@@ -51,11 +45,58 @@ function buildTraining(e: Record<string, unknown>): Omit<Training, "id"> {
     elevLossM: num(e.elevLossM) ?? 0,
     treadmill: e.treadmill === true || e.treadmill === "true" || e.treadmill === "on",
     note: e.note ? String(e.note) : undefined,
+    intensityOverride: intensityOverride(e.intensityOverride),
+    garminId: e.garminId ? String(e.garminId) : undefined,
   };
 }
 
+/** entry 하나를 훈련 기록으로 검증·병합한다 (data.trainings를 직접 수정, 정렬은 호출부 책임) */
+function applyTrainingEntry(data: PaceLabData, entry: Record<string, unknown>): void {
+  const built = buildTraining(entry);
+  // garminId가 있고 이미 저장된 기록이면 새로 추가하지 않고 덮어쓴다 (자동 동기화 중복 방지).
+  // garminId가 아직 없는 기존 기록(수동 입력분)이라도 같은 날짜·비슷한 거리·시간이면
+  // 같은 활동으로 보고 그 기록에 garminId를 붙여 병합한다 — 그래야 이후 동기화부터
+  // 정상적으로 매칭돼 중복이 생기지 않는다.
+  let existingIdx = built.garminId ? data.trainings.findIndex((t) => t.garminId === built.garminId) : -1;
+  if (existingIdx === -1 && built.garminId) {
+    existingIdx = data.trainings.findIndex(
+      (t) =>
+        !t.garminId &&
+        t.date === built.date &&
+        Math.abs(t.distanceKm - built.distanceKm) < 0.1 &&
+        Math.abs(parseTime(t.time) - parseTime(built.time)) < 60
+    );
+  }
+  if (existingIdx >= 0) {
+    data.trainings[existingIdx] = {
+      ...data.trainings[existingIdx],
+      ...built,
+      intensityOverride: data.trainings[existingIdx].intensityOverride ?? built.intensityOverride,
+    };
+  } else {
+    data.trainings.push({ id: crypto.randomUUID(), ...built });
+  }
+}
+
+function applyVo2max(data: PaceLabData, date: string | undefined, rawValue: unknown): void {
+  const value = num(rawValue);
+  if (!DATE_RE.test(date ?? "") || value === undefined || value <= 0) {
+    throw new Error("vo2max의 날짜(YYYY-MM-DD)와 값을 확인하세요.");
+  }
+  const idx = data.vo2max.findIndex((v) => v.date === date);
+  if (idx >= 0) data.vo2max[idx] = { date: date!, vo2max: value };
+  else data.vo2max.push({ date: date!, vo2max: value });
+  data.vo2max.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export async function POST(req: Request) {
-  let body: { pin?: string; type?: string; entry?: Record<string, unknown> };
+  let body: {
+    pin?: string;
+    type?: string;
+    entry?: Record<string, unknown>;
+    entries?: Record<string, unknown>[];
+    vo2max?: { date?: string; vo2max?: number };
+  };
   try {
     body = await req.json();
   } catch {
@@ -64,6 +105,27 @@ export async function POST(req: Request) {
 
   const auth = await verifyPin(body.pin);
   if (!auth.ok) return auth.res;
+
+  // 여러 훈련 기록(+선택적으로 VO2max 1건)을 한 번의 mutateData 호출로 묶어 저장한다.
+  // 가민 동기화 스크립트가 활동마다 개별 POST를 보내면 건당 Blob Advanced Operation이 여러 건씩
+  // 붙어서, 백필처럼 수십~수백 건을 한 번에 동기화할 때 순식간에 수백 건이 나간다 —
+  // 배치로 묶으면 몇 건을 보내든 한 번의 읽기-수정-쓰기로 고정된다.
+  if (body.type === "batch") {
+    if (!Array.isArray(body.entries) && !body.vo2max) {
+      return NextResponse.json({ error: "entries 또는 vo2max가 필요합니다." }, { status: 400 });
+    }
+    try {
+      await mutateData((data) => {
+        for (const e of body.entries ?? []) applyTrainingEntry(data, e);
+        data.trainings.sort((a, b) => a.date.localeCompare(b.date));
+        if (body.vo2max) applyVo2max(data, body.vo2max.date, body.vo2max.vo2max);
+      });
+    } catch (err) {
+      if (err instanceof DataUnavailableError) return NextResponse.json({ error: err.message }, { status: 503 });
+      return NextResponse.json({ error: err instanceof Error ? err.message : "검증 실패" }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true, trainingCount: (body.entries ?? []).length, vo2max: !!body.vo2max });
+  }
 
   const { type, entry } = body;
   if (!type || !entry) {
@@ -97,9 +159,11 @@ export async function POST(req: Request) {
           weightKg: Number(e.weightKg),
           bodyFatPct: Number(e.bodyFatPct) || 0,
           muscleKg: Number(e.muscleKg) || 0,
-          vo2max: num(e.vo2max),
         });
         data.inbody.sort((a, b) => a.date.localeCompare(b.date));
+      } else if (type === "vo2max") {
+        const e = entry as { date?: string; vo2max?: number };
+        applyVo2max(data, e.date, e.vo2max);
       } else if (type === "profile") {
         const e = entry as { maxHr?: number; restHr?: number };
         const maxHr = num(e.maxHr);
@@ -109,8 +173,7 @@ export async function POST(req: Request) {
         }
         data.profile = { maxHr, restHr };
       } else if (type === "training") {
-        const built = buildTraining(entry);
-        data.trainings.push({ id: crypto.randomUUID(), ...built });
+        applyTrainingEntry(data, entry);
         data.trainings.sort((a, b) => a.date.localeCompare(b.date));
       } else if (type === "upcoming") {
         const e = entry as {

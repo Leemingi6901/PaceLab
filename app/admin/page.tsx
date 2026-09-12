@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { predictAll, zoneBandLabel, type IntensityZone, type Prediction } from "@/lib/predict";
+import { buildLoadSeries, estimateFitness } from "@/lib/trainingLoad";
 
 type Msg = { kind: "ok" | "err"; text: string } | null;
+
+const INTENSITY_OPTIONS: IntensityZone[] = ["이지", "보통", "하드"];
 
 function Field({
   label,
@@ -23,6 +27,18 @@ export default function AdminPage() {
   const [pin, setPin] = useState("");
   const [msg, setMsg] = useState<Msg>(null);
   const [busy, setBusy] = useState(false);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+
+  useEffect(() => {
+    fetch("/api/data")
+      .then((r) => r.json())
+      .then((d) => {
+        const loadSeries = buildLoadSeries(d.races, d.inbody, d.trainings);
+        const fit = estimateFitness(d.races, d.inbody, loadSeries, d.vo2max);
+        setPredictions(predictAll(fit));
+      })
+      .catch(() => {});
+  }, []);
 
   async function submit(type: string, form: HTMLFormElement) {
     setBusy(true);
@@ -131,10 +147,19 @@ export default function AdminPage() {
             <Field label="골격근량(kg)">
               <input name="muscleKg" type="number" step="0.1" placeholder="33.5" />
             </Field>
-            <Field label="VO2max (기기 측정치, 선택)">
-              <input name="vo2max" type="number" step="0.1" placeholder="워치·검사 측정값" />
-            </Field>
             <button disabled={busy}>{busy ? "저장 중…" : "인바디 추가"}</button>
+          </form>
+
+          <form className="pl-form" onSubmit={onSubmit("vo2max")}>
+            <h3>🫁 VO2max</h3>
+            <Field label="날짜 *">
+              <input name="date" required type="date" />
+            </Field>
+            <Field label="VO2max *">
+              <input name="vo2max" required type="number" step="0.1" placeholder="워치·검사 측정값" />
+            </Field>
+            <span className="pl-edit-hint">인바디와 측정 주기가 다를 수 있어 따로 기록합니다. 워치 등에서 측정될 때마다 추가하세요.</span>
+            <button disabled={busy}>{busy ? "저장 중…" : "VO2max 추가"}</button>
           </form>
 
           <form className="pl-form" onSubmit={onSubmit("profile")}>
@@ -175,6 +200,28 @@ export default function AdminPage() {
               <input type="checkbox" name="treadmill" />
               <span>트레드밀에서 진행 (페이스 10% 보정 적용)</span>
             </label>
+            <Field label="강도 (선택, 비우면 페이스 기준 자동 분류)">
+              <select name="intensityOverride" defaultValue="">
+                <option value="">자동</option>
+                {INTENSITY_OPTIONS.map((z) => (
+                  <option key={z} value={z}>
+                    {z}
+                  </option>
+                ))}
+              </select>
+              {predictions.length > 0 && (
+                <div className="pl-zone-bands">
+                  {INTENSITY_OPTIONS.map((z) => {
+                    const label = zoneBandLabel(z, predictions);
+                    return label ? (
+                      <span key={z}>
+                        {z} {label}
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              )}
+            </Field>
             <Field label="메모">
               <input name="note" placeholder="한강 LSD, 잠실 인터벌…" />
             </Field>

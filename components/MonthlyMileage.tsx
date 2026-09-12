@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { RaceRecord } from "@/lib/predict";
 import type { Training } from "@/lib/store";
 
@@ -17,8 +20,11 @@ const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 export default function MonthlyMileage({ races, trainings }: Props) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth(); // 0-indexed
+  const [offset, setOffset] = useState(0); // 0 = 이번 달, +1 = 한 달 전 ...
+
+  const viewDate = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth(); // 0-indexed
   const monthLabel = `${year}년 ${month + 1}월`;
 
   const dayMap = new Map<string, { km: number; hasRace: boolean }>();
@@ -51,7 +57,7 @@ export default function MonthlyMileage({ races, trainings }: Props) {
     cells.push({ day: d, dateStr, km, hasRace: entry?.hasRace ?? false });
   }
 
-  const todayStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   return (
     <div className="pl-calendar">
@@ -64,8 +70,16 @@ export default function MonthlyMileage({ races, trainings }: Props) {
         </div>
         <div className="pl-calendar-total">
           <b>{monthTotalKm.toFixed(1)}</b>
-          <small>km 이번 달 누적</small>
+          <small>km 누적</small>
         </div>
+      </div>
+      <div className="pl-cal-nav">
+        <button type="button" className="pl-icon-btn" onClick={() => setOffset(offset + 1)}>
+          ← 이전 달
+        </button>
+        <button type="button" className="pl-icon-btn" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 1))}>
+          다음 달 →
+        </button>
       </div>
       <div className="pl-cal-grid pl-cal-weekdays">
         {WEEKDAYS.map((w) => (

@@ -1,5 +1,5 @@
 import { put, list, del } from "@vercel/blob";
-import type { RaceRecord, InbodyEntry, CourseSegment, ElevationPoint } from "./predict";
+import type { RaceRecord, InbodyEntry, Vo2maxEntry, CourseSegment, ElevationPoint, IntensityZone } from "./predict";
 
 export interface Training {
   id: string;
@@ -11,6 +11,10 @@ export interface Training {
   elevLossM?: number;
   treadmill?: boolean;
   note?: string;
+  /** 사용자가 직접 지정한 강도 — 있으면 페이스 기준 자동 분류 대신 이 값을 쓴다 */
+  intensityOverride?: IntensityZone;
+  /** 가민 Connect activityId — 자동 동기화가 같은 활동을 중복 저장하지 않도록 구분하는 키 */
+  garminId?: string;
 }
 
 export interface UpcomingRace {
@@ -33,6 +37,7 @@ export interface AthleteProfile {
 export interface PaceLabData {
   races: RaceRecord[];
   inbody: InbodyEntry[];
+  vo2max: Vo2maxEntry[];
   trainings: Training[];
   upcoming: UpcomingRace | null;
   profile: AthleteProfile;
@@ -43,6 +48,7 @@ const BLOB_PREFIX = "pacelab/data-";
 export const DEFAULT_DATA: PaceLabData = {
   races: [],
   inbody: [],
+  vo2max: [],
   trainings: [],
   upcoming: null,
   profile: {},
@@ -222,7 +228,7 @@ export async function mutateData(mutator: (data: PaceLabData) => void): Promise<
   await acquireLock();
   try {
     const latest = await getLatestVersion();
-    const data: PaceLabData = latest ? latest.data : { races: [], inbody: [], trainings: [], upcoming: null, profile: {} };
+    const data: PaceLabData = latest ? latest.data : { ...DEFAULT_DATA };
     mutator(data);
     await saveData(data);
     return data;
