@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getData, saveData, type PaceLabData, type Training } from "@/lib/store";
+import { DataUnavailableError, getData, mutateData, type Training } from "@/lib/store";
 import { segmentsFromProfile, type RaceRecord, type InbodyEntry, type ElevationPoint } from "@/lib/predict";
 
 export const dynamic = "force-dynamic";
@@ -7,6 +7,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return NextResponse.json(await getData());
 }
+
+class NotFoundError extends Error {}
 
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -68,113 +70,113 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "type과 entry가 필요합니다." }, { status: 400 });
   }
 
-  const data: PaceLabData = await getData();
-
   try {
-    if (type === "race") {
-      const e = entry as unknown as RaceRecord;
-      if (!e.race || !DATE_RE.test(e.date) || !TIME_RE.test(e.time) || !(Number(e.distanceKm) > 0)) {
-        throw new Error("대회명/날짜(YYYY-MM-DD)/거리/기록(MM:SS 또는 H:MM:SS)을 확인하세요.");
-      }
-      data.races.push({
-        race: String(e.race),
-        date: e.date,
-        distanceKm: Number(e.distanceKm),
-        time: e.time,
-        weightKg: e.weightKg ? Number(e.weightKg) : undefined,
-        maxHr: num(e.maxHr),
-        note: e.note ? String(e.note) : undefined,
-      });
-      data.races.sort((a, b) => a.date.localeCompare(b.date));
-    } else if (type === "inbody") {
-      const e = entry as unknown as InbodyEntry;
-      if (!DATE_RE.test(e.date) || !(Number(e.weightKg) > 0)) {
-        throw new Error("날짜(YYYY-MM-DD)와 체중을 확인하세요.");
-      }
-      data.inbody.push({
-        date: e.date,
-        weightKg: Number(e.weightKg),
-        bodyFatPct: Number(e.bodyFatPct) || 0,
-        muscleKg: Number(e.muscleKg) || 0,
-        vo2max: num(e.vo2max),
-      });
-      data.inbody.sort((a, b) => a.date.localeCompare(b.date));
-    } else if (type === "profile") {
-      const e = entry as { maxHr?: number; restHr?: number };
-      const maxHr = num(e.maxHr);
-      const restHr = num(e.restHr);
-      if (maxHr === undefined && restHr === undefined) {
-        throw new Error("최대심박 또는 안정시심박 중 하나는 입력해야 합니다.");
-      }
-      data.profile = { maxHr, restHr };
-    } else if (type === "training") {
-      const built = buildTraining(entry);
-      data.trainings.push({ id: crypto.randomUUID(), ...built });
-      data.trainings.sort((a, b) => a.date.localeCompare(b.date));
-    } else if (type === "upcoming") {
-      const e = entry as {
-        name?: string;
-        date?: string;
-        distanceKm?: number;
-        location?: string;
-        courseNote?: string;
-        elevationProfile?: string;
-        monthlyTargetKm?: string;
-      };
-      const dist = Number(e.distanceKm);
-      if (!e.name || !DATE_RE.test(e.date ?? "") || !(dist > 0)) {
-        throw new Error("대회명/날짜(YYYY-MM-DD)/거리를 확인하세요.");
-      }
+    await mutateData((data) => {
+      if (type === "race") {
+        const e = entry as unknown as RaceRecord;
+        if (!e.race || !DATE_RE.test(e.date) || !TIME_RE.test(e.time) || !(Number(e.distanceKm) > 0)) {
+          throw new Error("대회명/날짜(YYYY-MM-DD)/거리/기록(MM:SS 또는 H:MM:SS)을 확인하세요.");
+        }
+        data.races.push({
+          race: String(e.race),
+          date: e.date,
+          distanceKm: Number(e.distanceKm),
+          time: e.time,
+          weightKg: e.weightKg ? Number(e.weightKg) : undefined,
+          maxHr: num(e.maxHr),
+          note: e.note ? String(e.note) : undefined,
+        });
+        data.races.sort((a, b) => a.date.localeCompare(b.date));
+      } else if (type === "inbody") {
+        const e = entry as unknown as InbodyEntry;
+        if (!DATE_RE.test(e.date) || !(Number(e.weightKg) > 0)) {
+          throw new Error("날짜(YYYY-MM-DD)와 체중을 확인하세요.");
+        }
+        data.inbody.push({
+          date: e.date,
+          weightKg: Number(e.weightKg),
+          bodyFatPct: Number(e.bodyFatPct) || 0,
+          muscleKg: Number(e.muscleKg) || 0,
+          vo2max: num(e.vo2max),
+        });
+        data.inbody.sort((a, b) => a.date.localeCompare(b.date));
+      } else if (type === "profile") {
+        const e = entry as { maxHr?: number; restHr?: number };
+        const maxHr = num(e.maxHr);
+        const restHr = num(e.restHr);
+        if (maxHr === undefined && restHr === undefined) {
+          throw new Error("최대심박 또는 안정시심박 중 하나는 입력해야 합니다.");
+        }
+        data.profile = { maxHr, restHr };
+      } else if (type === "training") {
+        const built = buildTraining(entry);
+        data.trainings.push({ id: crypto.randomUUID(), ...built });
+        data.trainings.sort((a, b) => a.date.localeCompare(b.date));
+      } else if (type === "upcoming") {
+        const e = entry as {
+          name?: string;
+          date?: string;
+          distanceKm?: number;
+          location?: string;
+          courseNote?: string;
+          elevationProfile?: string;
+          monthlyTargetKm?: string;
+        };
+        const dist = Number(e.distanceKm);
+        if (!e.name || !DATE_RE.test(e.date ?? "") || !(dist > 0)) {
+          throw new Error("대회명/날짜(YYYY-MM-DD)/거리를 확인하세요.");
+        }
 
-      // "km,고도m" 한 줄에 하나씩 — 없으면 5km 단위 평지 구간으로 생성
-      let elevationProfile: ElevationPoint[] | undefined;
-      if (e.elevationProfile) {
-        elevationProfile = String(e.elevationProfile)
-          .split(/\r?\n/)
-          .map((line) => line.split(",").map((s) => Number(s.trim())))
-          .filter(([km, elevM]) => Number.isFinite(km) && Number.isFinite(elevM))
-          .map(([km, elevM]) => ({ km, elevM }))
-          .sort((a, b) => a.km - b.km);
-        if (elevationProfile.length < 2) elevationProfile = undefined;
+        // "km,고도m" 한 줄에 하나씩 — 없으면 5km 단위 평지 구간으로 생성
+        let elevationProfile: ElevationPoint[] | undefined;
+        if (e.elevationProfile) {
+          elevationProfile = String(e.elevationProfile)
+            .split(/\r?\n/)
+            .map((line) => line.split(",").map((s) => Number(s.trim())))
+            .filter(([km, elevM]) => Number.isFinite(km) && Number.isFinite(elevM))
+            .map(([km, elevM]) => ({ km, elevM }))
+            .sort((a, b) => a.km - b.km);
+          if (elevationProfile.length < 2) elevationProfile = undefined;
+        }
+
+        const segments = elevationProfile
+          ? segmentsFromProfile(dist, elevationProfile)
+          : Array.from({ length: Math.ceil(dist / 5) }, (_, i) => {
+              const from = i * 5;
+              const to = Math.min(from + 5, dist);
+              return { fromKm: from, toKm: Math.round(to * 1000) / 1000, elevGain: 0, elevLoss: 0 };
+            });
+
+        // "YYYY-MM,목표km" 한 줄에 하나씩
+        let monthlyTargetKm: Record<string, number> | undefined;
+        if (e.monthlyTargetKm) {
+          const entries = String(e.monthlyTargetKm)
+            .split(/\r?\n/)
+            .map((line) => line.split(",").map((s) => s.trim()))
+            .filter(([month, km]) => /^\d{4}-\d{2}$/.test(month ?? "") && Number(km) > 0)
+            .map(([month, km]) => [month, Number(km)] as const);
+          if (entries.length > 0) monthlyTargetKm = Object.fromEntries(entries);
+        }
+
+        data.upcoming = {
+          name: String(e.name),
+          date: e.date!,
+          distanceKm: dist,
+          location: e.location ? String(e.location) : "",
+          courseNote: e.courseNote ? String(e.courseNote) : "",
+          segments,
+          elevationProfile,
+          monthlyTargetKm,
+        };
+      } else {
+        throw new Error("알 수 없는 type입니다.");
       }
-
-      const segments = elevationProfile
-        ? segmentsFromProfile(dist, elevationProfile)
-        : Array.from({ length: Math.ceil(dist / 5) }, (_, i) => {
-            const from = i * 5;
-            const to = Math.min(from + 5, dist);
-            return { fromKm: from, toKm: Math.round(to * 1000) / 1000, elevGain: 0, elevLoss: 0 };
-          });
-
-      // "YYYY-MM,목표km" 한 줄에 하나씩
-      let monthlyTargetKm: Record<string, number> | undefined;
-      if (e.monthlyTargetKm) {
-        const entries = String(e.monthlyTargetKm)
-          .split(/\r?\n/)
-          .map((line) => line.split(",").map((s) => s.trim()))
-          .filter(([month, km]) => /^\d{4}-\d{2}$/.test(month ?? "") && Number(km) > 0)
-          .map(([month, km]) => [month, Number(km)] as const);
-        if (entries.length > 0) monthlyTargetKm = Object.fromEntries(entries);
-      }
-
-      data.upcoming = {
-        name: String(e.name),
-        date: e.date!,
-        distanceKm: dist,
-        location: e.location ? String(e.location) : "",
-        courseNote: e.courseNote ? String(e.courseNote) : "",
-        segments,
-        elevationProfile,
-        monthlyTargetKm,
-      };
-    } else {
-      throw new Error("알 수 없는 type입니다.");
-    }
+    });
   } catch (err) {
+    if (err instanceof DataUnavailableError) return NextResponse.json({ error: err.message }, { status: 503 });
     return NextResponse.json({ error: err instanceof Error ? err.message : "검증 실패" }, { status: 400 });
   }
 
-  await saveData(data);
   return NextResponse.json({ ok: true });
 }
 
@@ -192,22 +194,22 @@ export async function PUT(req: Request) {
   if (body.type !== "training" || !body.id || !body.entry) {
     return NextResponse.json({ error: "id와 entry가 필요합니다." }, { status: 400 });
   }
-
-  const data = await getData();
-  const idx = data.trainings.findIndex((t) => t.id === body.id);
-  if (idx === -1) {
-    return NextResponse.json({ error: "해당 훈련 기록을 찾을 수 없습니다." }, { status: 404 });
-  }
+  const { id, entry } = body;
 
   try {
-    const built = buildTraining(body.entry);
-    data.trainings[idx] = { id: body.id, ...built };
-    data.trainings.sort((a, b) => a.date.localeCompare(b.date));
+    await mutateData((data) => {
+      const idx = data.trainings.findIndex((t) => t.id === id);
+      if (idx === -1) throw new NotFoundError("해당 훈련 기록을 찾을 수 없습니다.");
+      const built = buildTraining(entry);
+      data.trainings[idx] = { id, ...built };
+      data.trainings.sort((a, b) => a.date.localeCompare(b.date));
+    });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
+    if (err instanceof DataUnavailableError) return NextResponse.json({ error: err.message }, { status: 503 });
     return NextResponse.json({ error: err instanceof Error ? err.message : "검증 실패" }, { status: 400 });
   }
 
-  await saveData(data);
   return NextResponse.json({ ok: true });
 }
 
@@ -225,14 +227,19 @@ export async function DELETE(req: Request) {
   if (body.type !== "training" || !body.id) {
     return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
   }
+  const { id } = body;
 
-  const data = await getData();
-  const before = data.trainings.length;
-  data.trainings = data.trainings.filter((t) => t.id !== body.id);
-  if (data.trainings.length === before) {
-    return NextResponse.json({ error: "해당 훈련 기록을 찾을 수 없습니다." }, { status: 404 });
+  try {
+    await mutateData((data) => {
+      const before = data.trainings.length;
+      data.trainings = data.trainings.filter((t) => t.id !== id);
+      if (data.trainings.length === before) throw new NotFoundError("해당 훈련 기록을 찾을 수 없습니다.");
+    });
+  } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
+    if (err instanceof DataUnavailableError) return NextResponse.json({ error: err.message }, { status: 503 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : "삭제에 실패했습니다." }, { status: 400 });
   }
 
-  await saveData(data);
   return NextResponse.json({ ok: true });
 }
