@@ -33,8 +33,8 @@ export default function CourseElevation({ profile, distanceKm }: Props) {
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
         <defs>
           <linearGradient id="elevFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.02" />
+            <stop offset="0%" style={{ stopColor: "var(--warn)" }} stopOpacity="0.5" />
+            <stop offset="100%" style={{ stopColor: "var(--warn)" }} stopOpacity="0.02" />
           </linearGradient>
         </defs>
         <path d={areaD} fill="url(#elevFill)" stroke="none" />

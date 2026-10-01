@@ -1,12 +1,53 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css");
+
+/* MG 디자인(업무일지와 같은 틀): 아이보리 바탕 + 먹색 글자 + PaceLab 포인트 색(청록). 시스템 다크모드를 따른다.
+   accent·accent2·accent3는 차트 시리즈 색이기도 해서, 라이트·다크 각각 바탕 대비가 충분한 톤으로 잡았다. */
 :root {
-  --bg: #07080c;
-  --surface: #0e1017;
-  --border: #1d2230;
-  --text: #eef1f6;
-  --muted: #8b93a7;
-  --accent: #2dd4bf;
-  --accent2: #f472b6;
-  --accent3: #a78bfa;
+  color-scheme: light;
+  --bg: #faf9f5;
+  --bg-elevated: #f1efe6;
+  --surface: #ffffff;
+  --surface-hover: #f7f6f1;
+  --border: #e4e0d5;
+  --border-strong: #cfc9b8;
+  --text: #1a1a1a;
+  --text-secondary: #6b4a30;
+  --muted: #7a6a58;
+  --accent: #0f766e;
+  --accent-contrast: #ffffff;
+  --accent2: #be185d;
+  --accent3: #6d28d9;
+  --warn: #9a6700;
+  --good: #4d7c0f;
+  --sky: #0369a1;
+  --silver: #64748b;
+  --bronze: #9a4a1c;
+  --danger: #a03b33;
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121110;
+    --bg-elevated: #22201c;
+    --surface: #1c1b18;
+    --surface-hover: #25231f;
+    --border: #2e2b26;
+    --border-strong: #45413a;
+    --text: #f3f0e8;
+    --text-secondary: #cdb89e;
+    --muted: #928675;
+    --accent: #2dd4bf;
+    --accent-contrast: #062521;
+    --accent2: #f472b6;
+    --accent3: #a78bfa;
+    --warn: var(--warn);
+    --good: var(--good);
+    --sky: var(--sky);
+    --silver: var(--silver);
+    --bronze: var(--bronze);
+    --danger: #ec7b70;
+  }
 }
 
 * {
@@ -16,12 +57,26 @@
 }
 
 body {
-  font-family: "Apple SD Gothic Neo", "Pretendard", -apple-system, sans-serif;
-  background:
-    radial-gradient(rgba(139, 147, 167, 0.055) 1px, transparent 1px) 0 0 / 34px 34px,
-    var(--bg);
+  font-family: var(--font-sans);
+  background: var(--bg);
   color: var(--text);
   line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 a {
@@ -31,29 +86,33 @@ a {
 
 em {
   font-style: normal;
-  background: linear-gradient(90deg, var(--accent), var(--accent3), var(--accent2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--accent);
 }
 
+/* 업무일지와 같은 떠 있는 둥근 바 */
 .pl-header {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 12px;
+  left: 16px;
+  right: 16px;
   z-index: 20;
+  max-width: 1120px;
+  height: 54px;
+  margin: 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 18px 40px;
-  background: linear-gradient(180deg, rgba(7, 8, 12, 0.92), rgba(7, 8, 12, 0));
+  padding: 0 8px 0 4px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--bg-elevated) 92%, transparent);
+  backdrop-filter: blur(8px);
 }
 
 .pl-logo {
-  font-weight: 800;
-  font-size: 1.2rem;
-  letter-spacing: -0.02em;
+  padding: 0 12px;
+  font-weight: 900;
+  font-size: 1.125rem;
+  letter-spacing: -0.03em;
   color: var(--text);
 }
 
@@ -61,13 +120,32 @@ em {
   color: var(--accent);
 }
 
+/* 메뉴가 10개라 좁은 화면에선 바 안에서 가로로 밀어 본다 */
+.pl-header nav {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+.pl-header nav::-webkit-scrollbar {
+  display: none;
+}
+
 .pl-header nav a {
-  margin-left: 24px;
-  color: var(--muted);
-  font-size: 0.92rem;
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 150ms, color 150ms;
 }
 
 .pl-header nav a:hover {
+  background: var(--surface);
   color: var(--text);
 }
 
@@ -84,15 +162,6 @@ em {
   overflow: hidden;
 }
 
-.pl-hero::before {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  background:
-    radial-gradient(620px 420px at 28% 18%, rgba(45, 212, 191, 0.12), transparent 70%),
-    radial-gradient(620px 420px at 74% 78%, rgba(244, 114, 182, 0.1), transparent 70%);
-  pointer-events: none;
-}
 
 .pl-hello {
   color: var(--accent);
@@ -104,7 +173,7 @@ em {
 
 .pl-hero h1 {
   font-size: clamp(2.8rem, 7vw, 4.8rem);
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: -0.04em;
   line-height: 1.12;
   margin-top: 6px;
@@ -128,18 +197,18 @@ em {
 }
 
 .pl-stat {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 18px 28px;
   min-width: 150px;
   transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
 }
 
 .pl-stat:hover {
-  border-color: rgba(45, 212, 191, 0.55);
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
   transform: translateY(-4px);
-  box-shadow: 0 14px 40px rgba(45, 212, 191, 0.1);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--text) 7%, transparent);
 }
 
 .pl-stat b {
@@ -283,17 +352,17 @@ em {
 }
 
 .pl-card {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   padding: 24px;
   transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
 }
 
 .pl-card:hover {
-  border-color: rgba(45, 212, 191, 0.55);
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
   transform: translateY(-4px);
-  box-shadow: 0 14px 40px rgba(45, 212, 191, 0.1);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--text) 7%, transparent);
 }
 
 .pl-card h3 {
@@ -344,8 +413,8 @@ em {
 
 .pl-badge {
   display: inline-block;
-  background: rgba(45, 212, 191, 0.1);
-  border: 1px solid rgba(45, 212, 191, 0.25);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--accent) 25%, transparent);
   color: var(--accent);
   font-size: 0.72rem;
   font-weight: 700;
@@ -360,9 +429,9 @@ em {
   gap: 20px;
   align-items: flex-end;
   padding: 28px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   overflow-x: auto;
 }
 
@@ -387,19 +456,19 @@ em {
 }
 
 .pl-bar-w {
-  background: linear-gradient(180deg, var(--accent), rgba(45, 212, 191, 0.25));
+  background: linear-gradient(180deg, var(--accent), color-mix(in oklab, var(--accent) 25%, transparent));
 }
 
 .pl-bar-f {
-  background: linear-gradient(180deg, var(--accent2), rgba(244, 114, 182, 0.25));
+  background: linear-gradient(180deg, var(--accent2), color-mix(in oklab, var(--accent2) 25%, transparent));
 }
 
 .pl-bar-m {
-  background: linear-gradient(180deg, var(--accent3), rgba(167, 139, 250, 0.25));
+  background: linear-gradient(180deg, var(--accent3), color-mix(in oklab, var(--accent3) 25%, transparent));
 }
 
 .pl-bar-vo2 {
-  background: linear-gradient(180deg, #fbbf24, rgba(251, 191, 36, 0.25));
+  background: linear-gradient(180deg, var(--warn), color-mix(in oklab, var(--warn) 25%, transparent));
 }
 
 .pl-vo2-block {
@@ -438,19 +507,19 @@ em {
   padding: 14px 8px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in oklab, var(--text) 2%, transparent);
   transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
 }
 
 .pl-weight-sim-cell:hover {
-  border-color: rgba(45, 212, 191, 0.55);
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
   transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgba(45, 212, 191, 0.1);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--text) 7%, transparent);
 }
 
 .pl-weight-sim-cell.current {
   border-color: var(--accent);
-  background: rgba(45, 212, 191, 0.06);
+  background: color-mix(in oklab, var(--accent) 6%, transparent);
 }
 
 .pl-weight-sim-kg {
@@ -526,7 +595,7 @@ em {
 .pl-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
 .pl-table {
@@ -550,7 +619,7 @@ em {
 }
 
 .pl-table th {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in oklab, var(--text) 3%, transparent);
   color: var(--muted);
   font-size: 0.78rem;
   letter-spacing: 0.06em;
@@ -571,7 +640,7 @@ em {
 /* 안내 박스 */
 .pl-note {
   border-left: 3px solid var(--accent);
-  background: rgba(45, 212, 191, 0.07);
+  background: color-mix(in oklab, var(--accent) 7%, transparent);
   border-radius: 0 10px 10px 0;
   padding: 14px 18px;
   color: var(--muted);
@@ -589,7 +658,8 @@ em {
 
 @media (max-width: 768px) {
   .pl-header {
-    padding: 14px 20px;
+    left: 12px;
+    right: 12px;
   }
 
   .pl-section {
@@ -612,14 +682,14 @@ em {
 
 .pl-msg.ok {
   color: var(--accent);
-  background: rgba(45, 212, 191, 0.1);
-  border: 1px solid rgba(45, 212, 191, 0.3);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
 }
 
 .pl-msg.err {
   color: var(--accent2);
-  background: rgba(244, 114, 182, 0.1);
-  border: 1px solid rgba(244, 114, 182, 0.3);
+  background: color-mix(in oklab, var(--accent2) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--accent2) 30%, transparent);
 }
 
 .pl-forms {
@@ -630,9 +700,9 @@ em {
 }
 
 .pl-form {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -656,14 +726,13 @@ em {
 }
 
 .pl-field input {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in oklab, var(--text) 4%, transparent);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 9px 12px;
   color: var(--text);
   font-size: 0.92rem;
   outline: none;
-  color-scheme: dark;
 }
 
 .pl-field input:focus {
@@ -671,7 +740,7 @@ em {
 }
 
 .pl-field textarea {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in oklab, var(--text) 4%, transparent);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 9px 12px;
@@ -680,7 +749,6 @@ em {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   outline: none;
   resize: vertical;
-  color-scheme: dark;
 }
 
 .pl-field textarea:focus {
@@ -689,14 +757,23 @@ em {
 
 .pl-form button {
   margin-top: 8px;
-  background: linear-gradient(90deg, var(--accent), var(--accent3));
+  background: var(--text);
   border: none;
-  border-radius: 999px;
-  color: #06231f;
-  font-weight: 800;
-  font-size: 0.92rem;
+  border-radius: 8px;
+  color: var(--surface);
+  font-weight: 600;
+  font-size: 0.9rem;
   padding: 11px 0;
   cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.pl-form button:hover {
+  opacity: 0.85;
+}
+
+.pl-form button:active {
+  transform: scale(0.98);
 }
 
 .pl-form button:disabled {
@@ -714,7 +791,7 @@ em {
 }
 
 .pl-pin-inline input {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in oklab, var(--text) 4%, transparent);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px 12px;
@@ -722,7 +799,6 @@ em {
   font-size: 0.88rem;
   width: 180px;
   outline: none;
-  color-scheme: dark;
 }
 
 .pl-pin-inline input:focus {
@@ -737,12 +813,12 @@ em {
 
 .pl-msg-inline.ok {
   color: var(--accent);
-  background: rgba(45, 212, 191, 0.1);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
 }
 
 .pl-msg-inline.err {
   color: var(--accent2);
-  background: rgba(244, 114, 182, 0.1);
+  background: color-mix(in oklab, var(--accent2) 10%, transparent);
 }
 
 .pl-pager {
@@ -776,20 +852,20 @@ em {
 
 .pl-zone.zone-easy {
   color: var(--accent);
-  border-color: rgba(45, 212, 191, 0.35);
-  background: rgba(45, 212, 191, 0.08);
+  border-color: color-mix(in oklab, var(--accent) 35%, transparent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
 }
 
 .pl-zone.zone-normal {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.35);
-  background: rgba(251, 191, 36, 0.08);
+  color: var(--warn);
+  border-color: color-mix(in oklab, var(--warn) 35%, transparent);
+  background: color-mix(in oklab, var(--warn) 8%, transparent);
 }
 
 .pl-zone.zone-hard {
   color: var(--accent2);
-  border-color: rgba(244, 114, 182, 0.35);
-  background: rgba(244, 114, 182, 0.08);
+  border-color: color-mix(in oklab, var(--accent2) 35%, transparent);
+  background: color-mix(in oklab, var(--accent2) 8%, transparent);
 }
 
 .pl-row-actions {
@@ -798,7 +874,7 @@ em {
 }
 
 .pl-icon-btn {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in oklab, var(--text) 5%, transparent);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--muted);
@@ -820,7 +896,7 @@ em {
 
 .pl-icon-btn.ok {
   color: var(--accent);
-  border-color: rgba(45, 212, 191, 0.35);
+  border-color: color-mix(in oklab, var(--accent) 35%, transparent);
 }
 
 .pl-icon-btn:disabled {
@@ -829,14 +905,13 @@ em {
 }
 
 .pl-row-editing input {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in oklab, var(--text) 5%, transparent);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 5px 8px;
   color: var(--text);
   font-size: 0.82rem;
   outline: none;
-  color-scheme: dark;
 }
 
 .pl-row-editing input:focus {
@@ -866,9 +941,9 @@ em {
 
 /* 월간 마일리지 캘린더 */
 .pl-calendar {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   padding: 24px;
 }
 
@@ -947,7 +1022,7 @@ em {
 
 .pl-cal-cell.active:hover {
   transform: translateY(-2px) scale(1.04);
-  box-shadow: 0 8px 20px rgba(45, 212, 191, 0.15);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--text) 7%, transparent);
 }
 
 .pl-cal-cell.empty {
@@ -955,8 +1030,8 @@ em {
 }
 
 .pl-cal-cell.active {
-  background: rgba(45, 212, 191, calc(0.12 + var(--intensity, 0) * 0.5));
-  border-color: rgba(45, 212, 191, calc(0.25 + var(--intensity, 0) * 0.4));
+  background: color-mix(in oklab, var(--accent) calc((0.12 + var(--intensity, 0) * 0.5) * 100%), transparent);
+  border-color: color-mix(in oklab, var(--accent) calc((0.25 + var(--intensity, 0) * 0.4) * 100%), transparent);
 }
 
 .pl-cal-cell.today {
@@ -997,38 +1072,38 @@ em {
 }
 
 .pl-workout-pick {
-  border-color: rgba(45, 212, 191, 0.55);
-  box-shadow: 0 14px 40px rgba(45, 212, 191, 0.12);
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--text) 7%, transparent);
 }
 
 .pl-pick-badge {
   position: absolute;
   top: -10px;
   right: 18px;
-  background: linear-gradient(90deg, var(--accent), var(--accent3));
-  color: #06231f;
+  background: var(--accent);
+  color: var(--accent-contrast);
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 700;
   padding: 3px 12px;
   border-radius: 999px;
 }
 
 .pl-level-하 {
   color: var(--accent);
-  border-color: rgba(45, 212, 191, 0.25);
-  background: rgba(45, 212, 191, 0.1);
+  border-color: color-mix(in oklab, var(--accent) 25%, transparent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
 }
 
 .pl-level-중 {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.25);
-  background: rgba(251, 191, 36, 0.1);
+  color: var(--warn);
+  border-color: color-mix(in oklab, var(--warn) 25%, transparent);
+  background: color-mix(in oklab, var(--warn) 10%, transparent);
 }
 
 .pl-level-상 {
   color: var(--accent2);
-  border-color: rgba(244, 114, 182, 0.25);
-  background: rgba(244, 114, 182, 0.1);
+  border-color: color-mix(in oklab, var(--accent2) 25%, transparent);
+  background: color-mix(in oklab, var(--accent2) 10%, transparent);
 }
 
 .pl-workout h3 {
@@ -1061,8 +1136,8 @@ em {
 .pl-hr-badge {
   margin-bottom: 0;
   margin-right: 4px;
-  background: rgba(167, 139, 250, 0.1);
-  border-color: rgba(167, 139, 250, 0.3);
+  background: color-mix(in oklab, var(--accent3) 10%, transparent);
+  border-color: color-mix(in oklab, var(--accent3) 30%, transparent);
   color: var(--accent3);
 }
 
@@ -1136,8 +1211,8 @@ em {
   color: var(--accent3);
   font-size: 0.72rem;
   font-weight: 700;
-  border: 1px solid rgba(167, 139, 250, 0.3);
-  background: rgba(167, 139, 250, 0.1);
+  border: 1px solid color-mix(in oklab, var(--accent3) 30%, transparent);
+  background: color-mix(in oklab, var(--accent3) 10%, transparent);
   padding: 1px 7px;
   border-radius: 999px;
   margin-left: 6px;
@@ -1172,55 +1247,55 @@ em {
 }
 
 .pl-tier-챌린저 {
-  border-color: rgba(250, 204, 21, 0.6);
-  background: linear-gradient(160deg, rgba(250, 204, 21, 0.16), rgba(239, 68, 68, 0.08));
-  box-shadow: 0 0 24px rgba(250, 204, 21, 0.18);
+  border-color: color-mix(in oklab, var(--warn) 60%, transparent);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--warn) 16%, transparent), color-mix(in oklab, var(--danger) 8%, transparent));
+  box-shadow: none;
 }
 .pl-tier-챌린저 .pl-tier-name {
-  background: linear-gradient(90deg, #fde047, #f97316, #ef4444);
+  background: linear-gradient(90deg, var(--warn), #ea580c, var(--danger));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .pl-tier-다이아몬드 {
-  border-color: rgba(96, 165, 250, 0.55);
-  background: linear-gradient(160deg, rgba(96, 165, 250, 0.14), rgba(167, 139, 250, 0.06));
+  border-color: color-mix(in oklab, var(--sky) 55%, transparent);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--sky) 14%, transparent), color-mix(in oklab, var(--accent3) 6%, transparent));
 }
 .pl-tier-다이아몬드 .pl-tier-name {
-  color: #7dd3fc;
+  color: var(--sky);
 }
 
 .pl-tier-플래티넘 {
-  border-color: rgba(45, 212, 191, 0.5);
-  background: linear-gradient(160deg, rgba(45, 212, 191, 0.14), rgba(94, 234, 212, 0.05));
+  border-color: color-mix(in oklab, var(--accent) 50%, transparent);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--accent) 14%, transparent), color-mix(in oklab, var(--accent) 5%, transparent));
 }
 .pl-tier-플래티넘 .pl-tier-name {
-  color: #5eead4;
+  color: var(--accent);
 }
 
 .pl-tier-골드 {
-  border-color: rgba(251, 191, 36, 0.5);
-  background: linear-gradient(160deg, rgba(251, 191, 36, 0.14), rgba(251, 191, 36, 0.04));
+  border-color: color-mix(in oklab, var(--warn) 50%, transparent);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--warn) 14%, transparent), color-mix(in oklab, var(--warn) 4%, transparent));
 }
 .pl-tier-골드 .pl-tier-name {
-  color: #fbbf24;
+  color: var(--warn);
 }
 
 .pl-tier-실버 {
-  border-color: rgba(203, 213, 225, 0.4);
-  background: linear-gradient(160deg, rgba(203, 213, 225, 0.12), rgba(203, 213, 225, 0.03));
+  border-color: color-mix(in oklab, var(--silver) 40%, transparent);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--silver) 12%, transparent), color-mix(in oklab, var(--silver) 3%, transparent));
 }
 .pl-tier-실버 .pl-tier-name {
-  color: #cbd5e1;
+  color: var(--silver);
 }
 
 .pl-tier-브론즈 {
-  border-color: rgba(217, 119, 87, 0.45);
-  background: linear-gradient(160deg, rgba(217, 119, 87, 0.14), rgba(217, 119, 87, 0.04));
+  border-color: color-mix(in oklab, var(--bronze) 45%, transparent);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--bronze) 14%, transparent), color-mix(in oklab, var(--bronze) 4%, transparent));
 }
 .pl-tier-브론즈 .pl-tier-name {
-  color: #e29a6d;
+  color: var(--bronze);
 }
 
 .pl-tier-언랭크 {
@@ -1242,21 +1317,21 @@ em {
 }
 
 .pl-load-danger {
-  border-color: rgba(244, 114, 182, 0.5);
+  border-color: color-mix(in oklab, var(--accent2) 50%, transparent);
 }
 .pl-load-danger b {
   color: var(--accent2) !important;
 }
 
 .pl-load-warn {
-  border-color: rgba(251, 191, 36, 0.5);
+  border-color: color-mix(in oklab, var(--warn) 50%, transparent);
 }
 .pl-load-warn b {
-  color: #fbbf24 !important;
+  color: var(--warn) !important;
 }
 
 .pl-load-fresh {
-  border-color: rgba(45, 212, 191, 0.5);
+  border-color: color-mix(in oklab, var(--accent) 50%, transparent);
 }
 .pl-load-fresh b {
   color: var(--accent) !important;
@@ -1264,9 +1339,9 @@ em {
 
 .pl-load-chart {
   margin-top: 28px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   padding: 20px;
 }
 
@@ -1302,7 +1377,7 @@ em {
 }
 
 .pl-predhist-tab {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in oklab, var(--text) 5%, transparent);
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
@@ -1343,9 +1418,9 @@ em {
 
 .pl-predhist-chart {
   position: relative;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   padding: 18px;
 }
 
@@ -1390,7 +1465,7 @@ em {
   min-width: 180px;
   max-width: 260px;
   font-size: 0.78rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 30px color-mix(in oklab, var(--text) 12%, transparent);
   pointer-events: none;
   z-index: 2;
 }
@@ -1462,14 +1537,14 @@ em {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in oklab, var(--text) 2%, transparent);
   transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
 }
 
 .pl-plan-phases li:hover {
-  border-color: rgba(45, 212, 191, 0.55);
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(45, 212, 191, 0.08);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--text) 7%, transparent);
 }
 
 .pl-phase-range {
@@ -1490,16 +1565,16 @@ em {
 
 .pl-month-badge {
   color: var(--accent);
-  border-color: rgba(45, 212, 191, 0.3);
-  background: rgba(45, 212, 191, 0.08);
+  border-color: color-mix(in oklab, var(--accent) 30%, transparent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
 }
 
 /* 코스 고도 프로파일 */
 .pl-elev-chart {
   margin-bottom: 20px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   padding: 16px 20px 12px;
 }
 
@@ -1511,7 +1586,7 @@ em {
 
 .pl-elev-line {
   fill: none;
-  stroke: #fbbf24;
+  stroke: var(--warn);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
@@ -1553,26 +1628,26 @@ em {
 
 .pl-score-badge.score-great {
   color: var(--accent);
-  border-color: rgba(45, 212, 191, 0.4);
-  background: rgba(45, 212, 191, 0.1);
+  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
 }
 
 .pl-score-badge.score-good {
-  color: #a3e635;
-  border-color: rgba(163, 230, 53, 0.4);
-  background: rgba(163, 230, 53, 0.1);
+  color: var(--good);
+  border-color: color-mix(in oklab, var(--good) 40%, transparent);
+  background: color-mix(in oklab, var(--good) 10%, transparent);
 }
 
 .pl-score-badge.score-fair {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.4);
-  background: rgba(251, 191, 36, 0.1);
+  color: var(--warn);
+  border-color: color-mix(in oklab, var(--warn) 40%, transparent);
+  background: color-mix(in oklab, var(--warn) 10%, transparent);
 }
 
 .pl-score-badge.score-poor {
   color: var(--accent2);
-  border-color: rgba(244, 114, 182, 0.4);
-  background: rgba(244, 114, 182, 0.1);
+  border-color: color-mix(in oklab, var(--accent2) 40%, transparent);
+  background: color-mix(in oklab, var(--accent2) 10%, transparent);
 }
 
 /* 훈련 점수 상세 패널 */
@@ -1584,7 +1659,7 @@ em {
 
 .pl-score-detail {
   padding: 20px 24px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in oklab, var(--text) 2%, transparent);
   border-top: 1px dashed var(--border);
   white-space: normal;
 }
